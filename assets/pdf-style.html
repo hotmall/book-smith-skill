@@ -62,7 +62,8 @@ h1, h2, h3, h4 { page-break-after: avoid; }
 #title-block .author { color: #5f6b78; margin: 4pt 0 0 0; text-align: center; }
 
 /* ========== 段落与列表 ========== */
-p { margin: 0 0 1.75em 0; }  /* 段后空一行（等于 line-height） */
+/* 中文正文不首行缩进，用段后留白分隔段落 */
+p { margin: 0 0 1.75em 0; text-indent: 0; }
 ul, ol { margin: 0.4em 0 1.75em 0; padding-left: 1.7em; }
 li { margin: 0.16em 0; page-break-inside: avoid; }
 

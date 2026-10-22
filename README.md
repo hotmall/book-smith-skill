@@ -9,14 +9,16 @@
 
 ## 特性
 
-- **PDF → Markdown**：自动统计正文字号、页边距和标题层级，识别首行缩进与引文，
+- **PDF → Markdown**：自动统计正文字号、页边距和标题层级，按原文缩进判断段落与引文，
   还原段落、列表、代码块、表格、图片和目录，剔除页码与重复页眉页脚。
-- **Markdown → PDF**：pandoc + WeasyPrint，A4/Letter 可换，页脚页码、PDF 书签、
+- **Markdown → PDF**：pandoc + WeasyPrint，A4/Letter 可换，段间留白、页脚页码、PDF 书签、
   目录页码、表格斑马纹、引用块样式开箱可用。
 - **Markdown → 电子书**：EPUB / AZW3 / MOBI / DOCX，自动生成阅读器导航、
   探测封面、写入书名/作者/系列元数据。
-- **中文优先**：中英混排拼接、中文标点整理、对齐造成的字间空格清理、
-  中文字体栈都已处理。
+- **中文优先**：中文段落不首行缩进、段间空行；中英混排拼接、中文标点整理、
+  对齐造成的字间空格清理、中文字体栈都已处理。
+- **中文排版统一**：生成的 Markdown、PDF 和电子书自动按 `chinese-style-skill`
+  的规则优化（中英文空格、全半角标点、数字与日期格式）。
 - **省事**：`doctor.sh` 一键体检；`pdf2md.py` 缺依赖且本机有 `uv` 时会自动
   拉临时环境运行；电子书引擎缺失时自动建缓存虚拟环境。
 - **可替换排版**：样式是独立 HTML/CSS 文件，不动脚本即可换字体、纸张、配色。
@@ -51,6 +53,8 @@ Calibre 的 `ebook-convert` 或 Python 3.11+。Linux 上需要中文字体（Not
 
 agent 会统计正文字号和页边距、按缩进分段落与引文、还原列表和代码块、剔除页码
 与重复页眉页脚、重建目录，并把图片抽到 `<文件名>.assets/`，首页大图存成封面。
+输出段落之间用空行分隔，不做首行缩进；生成后会自动用 `chinese-style-skill`
+优化中文排版（中英文/数字空格、全半角标点、引号与日期格式）。
 如果是扫描件、双栏或竖排，它会先说明限制，再按 `reference/pdf2md-tuning.md`
 调参重跑。
 
@@ -58,9 +62,9 @@ agent 会统计正文字号和页边距、按缩进分段落与引文、还原�
 
 > 把 `book.md` 导出成 A4 的 PDF，带页码和目录。
 
-默认会套用内置中文打印样式：首行缩进、章节色带、引用块、页脚页码、PDF 书签和
-表格斑马纹。想换字体、纸张或配色，直接说「换成 Letter / 宋体 / 双栏目录」，
-或者提供自己的 CSS 文件。
+默认会套用内置中文打印样式：段间留白、章节色带、引用块、页脚页码、PDF 书签和
+表格斑马纹。中文正文不首行缩进，段落靠空行和段后间距区分。想换字体、纸张或配色，
+直接说「换成 Letter / 宋体 / 双栏目录」，或者提供自己的 CSS 文件。
 
 ### Markdown → 电子书
 
@@ -79,6 +83,8 @@ Markdown 分别产出 PDF 和电子书 → 检查文件是否存在、目录条�
 ## 约定
 
 - 标题层级：`#` 书名，`##` 章，`###` 节，`####` 小节；两种输出都按这个层级生成导航
+- 中文段落：不首行缩进，段间空行；留白由样式控制，不用 `text-indent`
+- 中文排版：统一按 `chinese-style-skill` 的规则优化（中英文空格、标点、数字格式）
 - 图片目录：`<输出名>.assets/`，封面固定叫 `cover.*`
 - 图片写法：`![alt](<path>)`，路径含空格也不会坏
 - 产物：默认放 `dist/`，已在 `.gitignore` 里排除
@@ -89,6 +95,7 @@ Markdown 分别产出 PDF 和电子书 → 检查文件是否存在、目录条�
 想用自己的样式，把 CSS 文件交给 agent 让它替换即可，纯 CSS 也能用。常用改法：
 
 - 字体：改 `font-family`，宋体用 `"Songti SC", "Noto Serif CJK SC", serif`
+- 段落：保持 `text-indent: 0`，用段后 `margin` 留白；中文正文不要加首行缩进
 - 纸张与页边距：直接告诉 agent 要 A4/Letter 和具体边距，不要写死在样式里
 - PDF 书签：`h1–h4` 上的 `bookmark-level`
 - 目录页码：`nav#TOC a::after { content: leader('.') target-counter(attr(href), page); }`
@@ -130,6 +137,7 @@ Markdown 分别产出 PDF 和电子书 → 检查文件是否存在、目录条�
 | --- | --- |
 | `weasyprint: command not found` | 让 agent 补装 WeasyPrint（macOS 还需要 pango） |
 | PDF 里中文变方框 | 换字体（`font-family`），或安装思源/Noto CJK |
+| 正文出现首行缩进 | 去掉自定义样式里的 `text-indent`，中文段落改用段间留白 |
 | pandoc 提示 `translations for zh` / `Abstract has no translation` | 无害警告，忽略 |
 | 电子书转换第一次很慢 | 正在建 venv 装 `ebook-converter-lib`，之后复用 |
 | 电子书没有目录 | 让 agent 确认正文有 `##` 及更高级标题，或调整导航深度 |

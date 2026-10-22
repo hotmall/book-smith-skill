@@ -10,7 +10,9 @@
 * 标题：比正文大的字号按大小映射为 h2、h3…（h1 留给书名）；
 * 页眉 / 页脚 / 页码：位于页面上下边缘且在多页重复的行自动剔除；
 * 目录：不再照抄 PDF 目录页，用识别出的标题重新生成；
-* 图片：按页面位置插入正文，同图去重，首页大图作为 `cover.*`。
+* 图片：按页面位置插入正文，同图去重，首页大图作为 `cover.*`；
+* 输出排版：段落之间空行分隔，不写首行缩进；交付前配合 chinese-style-skill
+  优化中文空格、标点与数字格式。
 
 用法:
     pdf2md.py INPUT.pdf [-o OUT.md] [选项]
@@ -30,7 +32,7 @@
     --heading-scale F        标题字号阈值倍数（默认 1.12）
     --heading-depth N        标题最多映射几级（默认 3 → h2..h4）
     --heading-base N         最大字号对应的标题级别（默认 2，h1 留给书名）
-    --indent-chars N         段落首行缩进字数阈值（默认 2）
+    --indent-chars N         原文首行缩进字数阈值（默认 2，仅用于识别段落）
     --quote-indent-chars N   引文缩进字数阈值（默认 4）
     --chapter-regex RE       章标题正则，命中则强制作为标题
     --keep-page-numbers      保留页眉页脚与页码
@@ -741,7 +743,7 @@ def build_parser() -> argparse.ArgumentParser:
         metavar="RE",
         help="丢弃匹配该正则的行（水印、页边批注等），可重复使用",
     )
-    parser.add_argument("--indent-chars", type=float, default=2.0, help="首行缩进字数阈值（默认 2）")
+    parser.add_argument("--indent-chars", type=float, default=2.0, help="原文首行缩进字数阈值（默认 2，仅用于识别段落）")
     parser.add_argument("--quote-indent-chars", type=float, default=4.0, help="引文缩进字数阈值（默认 4）")
     parser.add_argument("--chapter-regex", default=DEFAULT_CHAPTER_RE, help="章标题正则")
     parser.add_argument("--keep-page-numbers", action="store_true", help="保留页眉页脚")

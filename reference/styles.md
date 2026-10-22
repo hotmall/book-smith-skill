@@ -25,6 +25,8 @@
 
 - **字体**：默认 PingFang SC（无衬线）。改宋体：
   `font-family: "Songti SC", "Noto Serif CJK SC", serif;`
+- **段落**：中文正文默认 `text-indent: 0`，靠段后 `margin` 留白；不要用
+  `text-indent: 2em` 做首行缩进。
 - **PDF 书签**：`h1–h4` 上的 `bookmark-level` 决定大纲层级，删掉就只剩页码。
 - **目录页码**：`nav#TOC a::after { content: leader('.') target-counter(attr(href), page); }`
   只对 pandoc `--toc` 生成的目录生效（`nav#TOC`）。Markdown 里手写的目录是普通列表，
@@ -39,7 +41,7 @@
 
 - 不要写 `@page`、`mm`、`pt` 固定尺寸——阅读器按自己的屏幕排版。
 - 字号用相对单位（`em`），行高 1.6–1.8 之间最稳。
-- 避免 `position: fixed`、`float`、`text-indent` 过大；Kobo/Kindle 上表现不可控。
+- 避免 `position: fixed`、`float`、`text-indent` 缩进首行；Kobo/Kindle 上表现不可控。
 - 标题的 `font-size` 不宜超过 1.8em，否则 Kindle 会截断。
 - 电子书不输出目录页码（阅读器自己算），用手写「## 目录」章节只会重复，
   所以 `md2ebook.py` 默认删掉它，改由 `--level1-toc //h:h2` 生成导航。

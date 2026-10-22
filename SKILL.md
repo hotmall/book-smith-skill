@@ -1,6 +1,6 @@
 ---
 name: book-smith-skill
-description: book-smith-skill —— 把 Markdown 排版成 PDF / EPUB / AZW3（Kindle），也把 PDF 反向还原成带图片、表格和目录的干净 Markdown。通用 pandoc + WeasyPrint + Calibre 流水线，内置中文排版样式（首行缩进、引文、页码、书签）。Use when the user asks to export Markdown to PDF, build an ebook (epub/azw3/mobi) for Kindle or a reader, apply print/ebook typography, convert a PDF into Markdown, recover images and tables from a PDF, or fix a bad PDF→Markdown conversion. Triggers include 导出 PDF、生成电子书、排版、转 Kindle、PDF 转 Markdown、PDF 提取图片/表格.
+description: book-smith-skill —— 把 Markdown 排版成 PDF / EPUB / AZW3（Kindle），也把 PDF 反向还原成带图片、表格和目录的干净 Markdown。通用 pandoc + WeasyPrint + Calibre 流水线，内置中文排版样式（段间留白、引文、页码、书签），中文排版统一按 chinese-style-skill 优化。Use when the user asks to export Markdown to PDF, build an ebook (epub/azw3/mobi) for Kindle or a reader, apply print/ebook typography, convert a PDF into Markdown, recover images and tables from a PDF, or fix a bad PDF→Markdown conversion. Triggers include 导出 PDF、生成电子书、排版、中文排版、转 Kindle、PDF 转 Markdown、PDF 提取图片/表格.
 ---
 
 # book-smith-skill
@@ -8,7 +8,7 @@ description: book-smith-skill —— 把 Markdown 排版成 PDF / EPUB / AZW3（
 三条命令覆盖「Markdown ↔ 电子书」全流程，脚本与样式都在本 skill 目录内，
 不依赖具体项目结构。
 
-```
+```text
 scripts/pdf2md.py      PDF  → Markdown（自动识别标题/段落/引文/表格/图片）
 scripts/md2pdf.sh      Markdown → PDF（pandoc + WeasyPrint）
 scripts/md2ebook.py    Markdown → EPUB / AZW3 / MOBI（pandoc + Calibre）
@@ -34,6 +34,21 @@ bash scripts/doctor.sh
 缺依赖时按输出安装。`pdf2md.py` 在缺 `pdfplumber`/`pillow` 且本机有 `uv` 时会
 自动用 `uv run --with ...` 临时环境运行，无需手动装。
 
+## 中文排版
+
+中文正文**不用首行缩进**，段落之间用空行分隔（Markdown 里是空行，PDF / 电子书里
+由段后间距体现）。生成或改写中文 Markdown、PDF、电子书时，必须自动加载
+`chinese-style-skill` 并按它的规则优化排版，不需要用户额外要求：
+
+- 中英文、中文与数字之间补空格；中文标点旁不留空格
+- 统一全角/半角标点、弯引号、书名号与括号，`……` 和 `——` 用双字符
+- 规范日期、时间、电话号码和千位分隔符
+- 只改格式，不改语义、用词和段落结构
+
+`pdf2md.py` 输出后先由 agent 用该 skill 过一遍再交付；PDF / 电子书成品也应符合
+同一套规则。若当前环境没有安装 `chinese-style-skill`，按上面的规则人工检查一遍，
+并在交付时说明。
+
 ## 命令
 
 ### 1. PDF → Markdown
@@ -50,7 +65,8 @@ python3 scripts/pdf2md.py book.pdf -o book.md --frontmatter --debug
 - 页面上有表格结构时输出 Markdown 表格
 - 剔除页码、重复页眉页脚、PDF 自带目录页，再按识别到的标题重新生成「## 目录」
 - 图片按位置插入，同图去重；首页大幅图存为 `cover.png|jpg`
-- 输出前做中文标点整理（`──`→`——`、单个 `…`→`……`、中英括号、字间多余空格）
+- 段落之间用空行分隔，不使用首行缩进；输出前清理中英文字间多余空格
+- 生成后自动用 `chinese-style-skill` 统一中文标点、空格和数字格式
 
 常用参数：
 
@@ -61,7 +77,7 @@ python3 scripts/pdf2md.py book.pdf -o book.md --frontmatter --debug
 | `--skip-pages 1-2,5` | 跳过封面、版权页等 |
 | `--heading-scale 1.12` | 标题字号阈值；层级识别不出来时调小 |
 | `--heading-base 2` | 最大字号对应级别；设 1 可保留原 h1 |
-| `--indent-chars 2` / `--quote-indent-chars 4` | 首行缩进 / 引文缩进阈值（单位：字） |
+| `--indent-chars 2` / `--quote-indent-chars 4` | 原文首行缩进 / 引文缩进阈值（仅用于识别段落） |
 | `--paragraph-gap 1.2` | 段间距阈值；无缩进排版或列表粘连时调整 |
 | `--no-images` / `--no-cover` / `--no-tables` | 关闭对应抽取 |
 | `--keep-page-numbers` | 保留页眉页脚（排查用） |
@@ -103,7 +119,7 @@ python3 scripts/md2ebook.py book.md -f azw3 -a 作者 --cover cover.jpg
 ## 推荐工作流
 
 1. **PDF 重排**：`pdf2md.py` → 检查 `--debug` 输出与抽样段落 → 调参重跑 →
-   `md2pdf.sh` 出新 PDF / `md2ebook.py` 出电子书
+   用 `chinese-style-skill` 优化中文排版 → `md2pdf.sh` 出新 PDF / `md2ebook.py` 出电子书
 2. **一次源文件，多端产出**：`doc.md` 同时跑 `md2pdf.sh` 和 `md2ebook.py`，
    两份产物共用同一套标题层级（h1 书名、h2 章、h3 节）
 3. **校验**：确认命令退出码为 0、输出文件存在且体积合理；抽查首尾段落、
@@ -112,6 +128,8 @@ python3 scripts/md2ebook.py book.md -f azw3 -a 作者 --cover cover.jpg
 ## 约定
 
 - 标题层级：`#` 书名，`##` 章，`###` 节，`####` 小节；两种输出都按这个约定生成导航
+- 中文段落：不首行缩进，段落之间空一行；段间留白由样式控制，不用 `text-indent`
+- 中文排版：以 `chinese-style-skill` 的规则为准（中英文空格、标点、数字格式）
 - 图片目录：`<输出名>.assets/`，封面固定叫 `cover.*`，脚本会清理旧的 `image*/cover.*`
 - 链接：图片一律写成 `![alt](<path>)`，路径含空格也不会坏
 - 样式改动只改 `assets/*.html`，不要改脚本里的排版规则
@@ -128,7 +146,7 @@ python3 scripts/md2ebook.py book.md -f azw3 -a 作者 --cover cover.jpg
 | 图片缺失 | 检查 PDF 是否为矢量图形/扫描图；扫描件需先 OCR（本 skill 不含 OCR） |
 | `weasyprint: command not found` | `pip install weasyprint`；macOS 还需 `brew install pango` |
 | pandoc 提示 `translations for zh` | 无害警告，可忽略 |
-| 电子书没封面 | 确认 `<md 名>.assets/cover.png|jpg` 或传 `--cover` |
+| 电子书没封面 | 确认 `<md 名>.assets/cover.png` / `cover.jpg`，或传 `--cover` |
 
 更细的参数取舍、脏 PDF 处理顺序见 `reference/pdf2md-tuning.md`，
 样式定制（字体、纸张、页码、书签、`.note` 弱化段落）见 `reference/styles.md`。
