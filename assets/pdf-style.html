@@ -1,0 +1,147 @@
+<style>
+/* ========== 页面 ========== */
+/* 打印用页面设置；命令行可用 --paper / --margin 覆盖 */
+@page {
+  size: A4;
+  margin: 18mm 16mm 16mm 16mm;
+  @bottom-center {
+    content: "第 " counter(page) " 页 / 共 " counter(pages) " 页";
+    font-size: 8.5pt;
+    color: #9aa4b2;
+  }
+}
+
+body {
+  font-family: "PingFang SC", "Hiragino Sans GB", "Microsoft YaHei",
+    "Noto Sans CJK SC", "Source Han Sans SC", sans-serif;
+  font-size: 10.5pt;
+  line-height: 1.75;
+  color: #2b2f36;
+  margin: 0;
+}
+
+/* ========== 标题 ========== */
+h1 {
+  font-size: 20pt;
+  font-weight: 700;
+  color: #17324d;
+  margin: 0 0 10pt 0;
+  padding-bottom: 8pt;
+  border-bottom: 2.5pt solid #2f6fb2;
+  bookmark-level: 1;
+  bookmark-label: content();
+}
+h2 {
+  font-size: 15pt;
+  font-weight: 600;
+  color: #1f3a5f;
+  margin: 16pt 0 6pt 0;
+  padding-bottom: 4pt;
+  border-bottom: 1pt solid #d3dde8;
+  bookmark-level: 2;
+}
+h3 {
+  font-size: 12.5pt;
+  font-weight: 600;
+  color: #274b73;
+  margin: 12pt 0 4pt 0;
+  bookmark-level: 3;
+}
+h4 {
+  font-size: 11pt;
+  font-weight: 600;
+  color: #33557e;
+  margin: 10pt 0 4pt 0;
+  bookmark-level: 4;
+}
+h1, h2, h3, h4 { page-break-after: avoid; }
+
+/* 模板里的书名 / 作者块 */
+#title-block { margin: 0 0 18pt 0; }
+#title-block .title { border-bottom: 2.5pt solid #2f6fb2; }
+#title-block .author { color: #5f6b78; margin: 4pt 0 0 0; text-align: center; }
+
+/* ========== 段落与列表 ========== */
+p { margin: 0 0 1.75em 0; }  /* 段后空一行（等于 line-height） */
+ul, ol { margin: 0.4em 0 1.75em 0; padding-left: 1.7em; }
+li { margin: 0.16em 0; page-break-inside: avoid; }
+
+/* ========== 目录 ========== */
+nav#TOC { page-break-after: always; }
+nav#TOC ul { list-style: none; padding-left: 1em; }
+nav#TOC > ul { padding-left: 0; }
+nav#TOC a { text-decoration: none; color: #1f3a5f; }
+nav#TOC a::after { content: leader('.') target-counter(attr(href), page); color: #9aa4b2; }
+
+/* ========== 图片 ========== */
+img { max-width: 100%; height: auto; }
+p > img { display: block; margin: 0.8em auto; }
+
+/* ========== 引用块 ========== */
+blockquote {
+  margin: 0.6em 0 1.75em 0;
+  padding: 0.6em 1em 0.6em 1.1em;
+  background: #f4f7fb;
+  border-left: 4pt solid #2f6fb2;
+  border-radius: 3pt;
+  color: #374151;
+  page-break-inside: avoid;
+}
+blockquote p { margin: 0.15em 0; }
+
+/* ========== 表格 ========== */
+table {
+  border-collapse: collapse;
+  width: 100%;
+  table-layout: auto;
+  margin: 0.6em 0 1.75em 0;
+  font-size: 9.5pt;
+  line-height: 1.55;
+}
+th, td {
+  border: 0.8pt solid #c3cdd8;
+  padding: 5pt 8pt;
+  vertical-align: top;
+  text-align: left;
+}
+th { background: #eef3f8; font-weight: 600; color: #17324d; }
+tbody tr:nth-child(even) { background: #fafbfc; }
+
+/* ========== 复选框清单（对齐） ========== */
+ul.task-list { list-style: none; padding-left: 0.2em; }
+ul.task-list li input[type="checkbox"] { display: none; }
+ul.task-list > li::before {
+  content: "☐";
+  margin-right: 0.55em;
+  font-size: 1.15em;
+  color: #2f6fb2;
+}
+
+/* ========== 灰字弱化段落（背景资料备注） ========== */
+.note { color: #7a8694; line-height: 1.75; margin: 0.6em 0; }
+.note p { margin: 0.35em 0; }
+.note strong { color: #5f6b78; font-weight: 600; }
+.note-title {
+  color: #5f6b78;
+  font-size: 12.5pt;
+  font-weight: 600;
+  margin: 12pt 0 4pt 0;
+}
+
+/* ========== 其他 ========== */
+strong { color: #17324d; }
+a { color: #2f6fb2; }
+code, pre {
+  font-family: "SF Mono", Menlo, Consolas, "Hiragino Sans GB", "PingFang SC",
+    "Noto Sans Mono CJK SC", "Songti SC", monospace;
+  font-size: 9.5pt;
+}
+pre {
+  background: #f6f8fa;
+  border: 0.8pt solid #d8dee6;
+  border-radius: 3pt;
+  padding: 6pt 9pt;
+  white-space: pre-wrap;
+  overflow-wrap: break-word;
+}
+</style>
