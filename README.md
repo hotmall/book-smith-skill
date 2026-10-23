@@ -1,154 +1,239 @@
 # book-smith-skill
 
-> 一个给 AI agent 用的电子书工坊：**Markdown ⇄ PDF / EPUB / AZW3**。
-> 从一句话到成书，内置中文版式识别与打印样式。
+English | [简体中文](README.zh-CN.md)
 
-`book-smith-skill` 是一个自包含的 skill 包：`SKILL.md` 告诉 agent 什么时候用、
-怎么调参，`scripts/` 是可直接运行的通用脚本，`assets/` 是可替换的排版样式，
-`reference/` 是脏 PDF 调参手册和样式定制指南。全部在本地运行，不依赖云服务。
+> An ebook workshop for AI agents: **Markdown ⇄ PDF / EPUB / AZW3**.
+> Scripts and typography are ported from the `jpm` project. Every output goes
+> through a single-file HTML step before WeasyPrint or Calibre.
 
-## 特性
+`book-smith-skill` is a self-contained skill package: `SKILL.md` tells an agent
+when to use it and how to tune it, `scripts/` contains runnable utilities,
+`assets/` contains the typography, and `reference/` contains the PDF tuning
+guide and style notes. Everything runs locally; no cloud service is required.
 
-- **PDF → Markdown**：自动统计正文字号、页边距和标题层级，按原文缩进判断段落与引文，
-  还原段落、列表、代码块、表格、图片和目录，剔除页码与重复页眉页脚。
-- **Markdown → PDF**：pandoc + WeasyPrint，A4/Letter 可换，段间留白、页脚页码、PDF 书签、
-  目录页码、表格斑马纹、引用块样式开箱可用。
-- **Markdown → 电子书**：EPUB / AZW3 / MOBI / DOCX，自动生成阅读器导航、
-  探测封面、写入书名/作者/系列元数据。
-- **中文优先**：中文段落不首行缩进、段间空行；中英混排拼接、中文标点整理、
-  对齐造成的字间空格清理、中文字体栈都已处理。
-- **中文排版统一**：生成的 Markdown、PDF 和电子书自动按 `chinese-style-skill`
-  的规则优化（中英文空格、全半角标点、数字与日期格式）。
-- **省事**：`doctor.sh` 一键体检；`pdf2md.py` 缺依赖且本机有 `uv` 时会自动
-  拉临时环境运行；电子书引擎缺失时自动建缓存虚拟环境。
-- **可替换排版**：样式是独立 HTML/CSS 文件，不动脚本即可换字体、纸张、配色。
+## Features
 
-## 安装
+- **PDF → Markdown**: infers body font size, margins, and heading levels; merges
+  paragraphs and restores blockquotes, lists, code blocks, tables, images, and a
+  table of contents; strips page numbers and repeated headers/footers.
+- **Markdown → HTML → PDF**: pandoc produces a standalone HTML file with images
+  and CSS embedded, then WeasyPrint renders an A4 PDF. A4, PingFang SC, paragraph
+  spacing, page footers, h1–h4 bookmarks, and zebra-striped tables come from
+  `jpm/pdf-style.html`.
+- **Markdown → HTML → ebook**: the same HTML goes to Calibre to produce EPUB /
+  AZW3 / MOBI, with reader navigation, cover detection, and title/author
+  metadata. Styling comes from `jpm/ebook-style.html`.
+- **Markdown cleanup**: every generated Markdown file is checked by
+  `chinese-style-guide` first, then structurally fixed by `markdownlint --fix`.
+- **One-step install**: `scripts/install.sh` installs this skill and
+  [`chinese-style-guide`](https://github.com/RightCapitalHQ/chinese-style-guide)
+  together.
+- **Low friction**: `doctor.sh` checks dependencies; `pdf2md.py` bootstraps a
+  temporary `uv` environment if `pdfplumber` / `pillow` are missing; the ebook
+  script creates `.venv-azw3` on first use.
 
-把仓库地址交给 agent，让它装成技能即可，不需要自己敲命令：
+## Installation
 
-```text
-帮我安装这个 skill：<repo-url>
+Point your agent at the repository and ask it to install the skill. **Install
+`chinese-style-guide` at the same time.** The simplest path is the bundled
+installer:
+
+```bash
+# OpenCode (default: ~/.config/opencode/skills)
+bash scripts/install.sh
+
+# Claude Code
+bash scripts/install.sh --target ~/.claude/skills
 ```
 
-agent 会把它放进当前客户端的技能目录（OpenCode 全局为
-`~/.config/opencode/skills/book-smith-skill`，Claude Code 为
-`~/.claude/skills/book-smith-skill`），并保持目录名与 `SKILL.md` 中的
-`name: book-smith-skill` 一致。新开一个会话，在技能列表里看到它就算装好了。
-只想给某个项目用，就让 agent 装到项目的 `.opencode/skills/` 下。
+The script installs both:
 
-依赖同样交给 agent：第一次使用时会自动运行 `bash scripts/doctor.sh`，缺什么
-装什么。需要的组件是 pandoc、WeasyPrint、Python（pdfplumber / pillow），以及
-Calibre 的 `ebook-convert` 或 Python 3.11+。Linux 上需要中文字体（Noto CJK）
-和 pango，Windows 建议在 WSL 里使用。
+```text
+<SKILLS_DIR>/
+├── book-smith-skill/
+└── chinese-style-guide/      from RightCapitalHQ/chinese-style-guide
+```
 
-## 用法
+Open a new session (or refresh the skill list) after installation. You should
+see both `book-smith-skill` and `chinese-style-guide` in the skill list.
 
-装好之后直接用自然语言提需求，agent 会按 `SKILL.md` 选择脚本、参数和样式，
-并在出错时自动排查。下面是可以直接照说的例子。
+Let the agent handle dependencies. On first use it runs
+`bash scripts/doctor.sh` and installs whatever is missing. Required components:
+pandoc, WeasyPrint, Python (pdfplumber / pillow), markdownlint, and Python 3.11+
+(the ebook script installs `ebook-converter-lib`, which bundles the Calibre
+engine). On Linux you also need CJK fonts (Noto CJK) and pango; on Windows,
+use WSL.
 
-### PDF → Markdown
+## Pipeline
 
-> 帮我把 `~/Downloads/某书.pdf` 转成 Markdown，保留图片、表格和目录。
+```text
+PDF ──pdf2md.py──▶ Markdown ──chinese-style-guide fixes → markdownlint --fix──▶ final Markdown
+                                                                  │
+                                                        pandoc (standalone HTML)
+                                                        ├── WeasyPrint ──▶ PDF
+                                                        └── Calibre ─────▶ AZW3 / EPUB
+```
 
-agent 会统计正文字号和页边距、按缩进分段落与引文、还原列表和代码块、剔除页码
-与重复页眉页脚、重建目录，并把图片抽到 `<文件名>.assets/`，首页大图存成封面。
-输出段落之间用空行分隔，不做首行缩进；生成后会自动用 `chinese-style-skill`
-优化中文排版（中英文/数字空格、全半角标点、引号与日期格式）。
-如果是扫描件、双栏或竖排，它会先说明限制，再按 `reference/pdf2md-tuning.md`
-调参重跑。
+### 1. PDF → Markdown
 
-### Markdown → PDF
+> Convert `~/Downloads/some-book.pdf` to Markdown, keeping images, tables, and
+> the table of contents.
 
-> 把 `book.md` 导出成 A4 的 PDF，带页码和目录。
+```bash
+python3 scripts/pdf2md.py book.pdf -o book.md --debug
+```
 
-默认会套用内置中文打印样式：段间留白、章节色带、引用块、页脚页码、PDF 书签和
-表格斑马纹。中文正文不首行缩进，段落靠空行和段后间距区分。想换字体、纸张或配色，
-直接说「换成 Letter / 宋体 / 双栏目录」，或者提供自己的 CSS 文件。
+The script measures body font size and page margins, splits paragraphs and
+blockquotes by indentation, restores lists and code blocks, removes page
+numbers and repeated headers/footers, rebuilds the table of contents, and
+extracts images into `<name>.assets/` (the largest image on the first page
+becomes the cover). Paragraphs are separated by blank lines; no first-line
+indent is written. After generation it runs `md-lint.sh`:
 
-### Markdown → 电子书
+- `chinese-style-guide` checks Chinese typography first;
+- `markdownlint --fix` performs the final structural pass.
 
-> 把 `book.md` 做成 Kindle 能看的 azw3，书名《……》，作者是……。
+### 2. Markdown → PDF
 
-支持 EPUB、AZW3、MOBI、DOCX；agent 会自动生成阅读器导航、探测封面、写入书名/
-作者/系列元数据，并按 `<文件名>.assets/cover.*` 找封面。
+> Export `book.md` to PDF with page numbers.
 
-### 组合流程
+```bash
+bash scripts/build-pdf.sh book.md
+```
 
-> 把这个 PDF 重排成 PDF 和电子书。
+The output is `dist/book.pdf`. The default style is `jpm/pdf-style.html`: A4,
+PingFang SC at 10.5pt, paragraph spacing, blue-gray headings, light-blue
+blockquotes, a “Page N of M” footer, PDF bookmarks, and zebra-striped tables.
+Chinese body text has no first-line indent.
 
-agent 的典型做法是：先转成 Markdown 并抽样校对 → 必要时调参重跑 → 用同一份
-Markdown 分别产出 PDF 和电子书 → 检查文件是否存在、目录条目和图片数量是否正常。
+### 3. Markdown → ebook
 
-## 约定
+> Build a Kindle-ready AZW3 from `book.md`; the author is ….
 
-- 标题层级：`#` 书名，`##` 章，`###` 节，`####` 小节；两种输出都按这个层级生成导航
-- 中文段落：不首行缩进，段间空行；留白由样式控制，不用 `text-indent`
-- 中文排版：统一按 `chinese-style-skill` 的规则优化（中英文空格、标点、数字格式）
-- 图片目录：`<输出名>.assets/`，封面固定叫 `cover.*`
-- 图片写法：`![alt](<path>)`，路径含空格也不会坏
-- 产物：默认放 `dist/`，已在 `.gitignore` 里排除
+```bash
+bash scripts/build-azw3.sh book.md -a "Author Name"
+bash scripts/build-azw3.sh book.md -o dist/book.epub
+```
 
-## 样式定制
+The same HTML can produce EPUB, AZW3, or MOBI based on the `-o` extension. The
+script creates reader navigation, looks for `<name>.assets/cover.*`, and writes
+title/author metadata.
 
-`assets/pdf-style.html` 与 `assets/ebook-style.html` 是 HTML 片段（`<style>…</style>`），
-想用自己的样式，把 CSS 文件交给 agent 让它替换即可，纯 CSS 也能用。常用改法：
+### 4. Markdown cleanup
 
-- 字体：改 `font-family`，宋体用 `"Songti SC", "Noto Serif CJK SC", serif`
-- 段落：保持 `text-indent: 0`，用段后 `margin` 留白；中文正文不要加首行缩进
-- 纸张与页边距：直接告诉 agent 要 A4/Letter 和具体边距，不要写死在样式里
-- PDF 书签：`h1–h4` 上的 `bookmark-level`
-- 目录页码：`nav#TOC a::after { content: leader('.') target-counter(attr(href), page); }`
+```bash
+bash scripts/md-lint.sh book.md
+```
 
-细节见 `reference/styles.md`。
+The order matters:
 
-## 目录结构
+1. `chinese-style-guide` checks Chinese spacing, full-width/half-width
+   punctuation, numbers, and dates. It reports issues but does not rewrite text.
+2. Fix the reported issues and rerun.
+3. `markdownlint --fix` performs the final structural pass (blank lines,
+   blank lines around headings, horizontal rules, etc.), followed by a
+   `markdownlint` check.
+
+Chinese typography fixes can change line structure, so `markdownlint` must run
+last. `pdf2md.py` runs this step automatically; use `--no-lint` to skip it while
+tuning.
+
+### Combined workflow
+
+> Rebuild this PDF as both a PDF and an ebook.
+
+A typical run: `pdf2md.py` → sample and tune → `md-lint.sh` and
+`chinese-style-guide` fixes → `build-pdf.sh` and `build-azw3.sh` from the same
+Markdown → verify file sizes, TOC entries, and image counts.
+
+## Conventions
+
+- Heading levels: `#` book title, `##` chapter, `###` section, `####`
+  subsection. PDF bookmarks and ebook navigation follow this hierarchy.
+- Chinese paragraphs: no first-line indent; separate paragraphs with a blank
+  line. Spacing is controlled by styles, not `text-indent`.
+- Chinese typography: follow `chinese-style-guide` (CJK/Latin spacing,
+  punctuation, numbers).
+- Image directory: `<output-name>.assets/`; the cover is always `cover.*`.
+- Image syntax: `![alt](<path>)`, which survives paths containing spaces.
+- Outputs: `dist/` by default.
+- Styles and scripts: keep the `jpm` implementation; do not invent new
+  typography rules.
+
+## Style provenance
+
+`assets/pdf-style.html` and `assets/ebook-style.html` are byte-for-byte ports of
+`jpm/pdf-style.html` and `jpm/ebook-style.html`:
+
+- **PDF**: A4, margins `18mm 16mm 16mm 16mm`, PingFang SC 10.5pt / 1.75 line
+  height, `1.75em` paragraph spacing, h1–h4 bookmarks, page footer, blockquotes
+  with `#f4f7fb` background and a 4pt blue rule, zebra-striped tables, muted
+  `.note` paragraphs, and task-list checkboxes.
+- **Ebook**: Songti SC body at 1.7 line height, dark-blue headings with bottom
+  rules, blockquotes with a 3px blue rule, bordered tables with a tinted header.
+  No `@page` or print-only rules.
+
+The core commands, pandoc arguments, and HTML intermediate handling in
+`build-pdf.sh` and `build-azw3.sh` are also ported from `jpm/build-pdf.sh` and
+`jpm/build-azw3.sh`. See `reference/styles.md` for details.
+
+## Directory layout
 
 ```text
 .
-├── SKILL.md                 技能说明（agent 入口）
-├── README.md                本文件
+├── SKILL.md                 agent entry point
+├── README.md                this file (English)
+├── README.zh-CN.md          Chinese README
 ├── assets/
-│   ├── pdf-style.html       打印样式
-│   ├── ebook-style.html     电子书样式
-│   └── template.html        最小 HTML 模板
+│   ├── pdf-style.html       print style (ported from jpm)
+│   └── ebook-style.html     ebook style (ported from jpm)
 ├── scripts/
 │   ├── pdf2md.py            PDF → Markdown
-│   ├── md2pdf.sh            Markdown → PDF
-│   ├── md2ebook.py          Markdown → EPUB/AZW3/MOBI/DOCX
-│   └── doctor.sh            依赖体检
+│   ├── build-pdf.sh         Markdown → HTML → PDF
+│   ├── build-azw3.sh        Markdown → HTML → EPUB/AZW3/MOBI
+│   ├── md-lint.sh           chinese-style-guide → markdownlint cleanup
+│   ├── install.sh           install this skill + chinese-style-guide
+│   └── doctor.sh            dependency check
 ├── reference/
-│   ├── pdf2md-tuning.md     脏 PDF 调参手册
-│   └── styles.md            样式定制指南
-└── examples/demo.md         可直接跑通的演示文档
+│   ├── pdf2md-tuning.md     tuning guide for messy PDFs
+│   └── styles.md            style notes
+└── examples/demo.md         runnable demo document
 ```
 
-## 已知限制
+## Known limitations
 
-- 双栏/多栏、竖排 PDF 不做栏检测，建议先裁切或改用 `pdftotext -layout`
-- 扫描件需要先 OCR（如 `ocrmypdf`），本仓库不含 OCR
-- 标题层级只按字号判断，全部同字号的文档识别不出标题
-- 跨页表格按页抽取，不自动合并
-- 页脚脚注会按阅读顺序留在正文里
+- Two-column / multi-column and vertical PDFs are not handled. Crop the pages
+  first or use `pdftotext -layout`.
+- Scanned PDFs need OCR first (for example `ocrmypdf`); this repository does not
+  include OCR.
+- Heading detection is font-size based. Documents where all headings share the
+  body size cannot be segmented automatically.
+- Tables are extracted page by page; cross-page tables are not merged.
+- Footnotes stay in reading order in the body.
+- `chinese-style-guide` only covers machine-checkable rules (spacing,
+  punctuation, numbers). Semantics and word choice still need an agent review.
 
-## 常见问题
+## FAQ
 
-| 现象 | 处理 |
+| Symptom | Fix |
 | --- | --- |
-| `weasyprint: command not found` | 让 agent 补装 WeasyPrint（macOS 还需要 pango） |
-| PDF 里中文变方框 | 换字体（`font-family`），或安装思源/Noto CJK |
-| 正文出现首行缩进 | 去掉自定义样式里的 `text-indent`，中文段落改用段间留白 |
-| pandoc 提示 `translations for zh` / `Abstract has no translation` | 无害警告，忽略 |
-| 电子书转换第一次很慢 | 正在建 venv 装 `ebook-converter-lib`，之后复用 |
-| 电子书没有目录 | 让 agent 确认正文有 `##` 及更高级标题，或调整导航深度 |
-| PDF 转出来段落粘连 / 被拆碎 | 让 agent 按 `reference/pdf2md-tuning.md` 调段落间距与缩进阈值 |
-| 目录出现两份 | 告诉 agent 不要重复生成目录，或跳过 PDF 自带的目录页 |
-| 封面没被识别 | 直接指定封面图；默认只认首页占比够大的图片 |
+| `weasyprint: command not found` | Install WeasyPrint (macOS also needs pango) |
+| Chinese characters render as boxes | Change `font-family` or install Source Han / Noto CJK |
+| Body text has a first-line indent | Remove `text-indent` from a custom style |
+| pandoc warns about `translations for zh` | Harmless; ignore it |
+| The first ebook conversion is slow | It is creating `.venv-azw3` and installing `ebook-converter-lib`; later runs reuse it |
+| The ebook has no TOC | Make sure the body uses `##` or higher-level headings |
+| PDF→Markdown merges or splits paragraphs | Follow `reference/pdf2md-tuning.md` to adjust thresholds |
+| The TOC appears twice | Do not generate it twice; skip the PDF's own TOC pages |
+| The cover is not detected | Pass a cover explicitly; by default only a large first-page image is used |
+| Chinese check says the guide is missing | Run `bash scripts/install.sh` |
+| markdownlint still reports problems | Fix by line number and rerun `md-lint.sh` |
 
-## 说明
+## Notes
 
-- 命令输出里的 `[booksmith]` 前缀、`BOOKSMITH_*` 环境变量和 `~/.cache/booksmith`
-  缓存目录是工具内部品牌名（Booksmith），与技能名 `book-smith-skill` 对应同一套脚本。
-- 已在 macOS（pandoc 3.9 / WeasyPrint 68 / Calibre 引擎）上验证：
-  Markdown→PDF→Markdown 往返、中文缩进分段、引文块、列表、代码块、表格、目录重建、封面识别，
-  EPUB/AZW3 的元数据、导航、封面，以及纯 CSS 自定义样式。
+- The `[booksmith]` prefix and `BOOKSMITH_*` environment variables are internal
+  identifiers used by the same scripts.
+- Verified on macOS (pandoc 3.9 / WeasyPrint 68 / Calibre engine):
+  Markdown→PDF→Markdown round trips, Chinese paragraph segmentation,
+  blockquotes, lists, code blocks, tables, TOC rebuilding, cover detection, and
+  EPUB/AZW3 metadata, navigation, and covers.

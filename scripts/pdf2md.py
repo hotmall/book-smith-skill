@@ -11,8 +11,8 @@
 * 页眉 / 页脚 / 页码：位于页面上下边缘且在多页重复的行自动剔除；
 * 目录：不再照抄 PDF 目录页，用识别出的标题重新生成；
 * 图片：按页面位置插入正文，同图去重，首页大图作为 `cover.*`；
-* 输出排版：段落之间空行分隔，不写首行缩进；交付前配合 chinese-style-skill
-  优化中文空格、标点与数字格式。
+* 输出排版：段落之间空行分隔，不写首行缩进；生成后自动跑 md-lint.sh
+  （先 chinese-style-guide 检查，再 markdownlint --fix），再交付 PDF / 电子书。
 
 用法:
     pdf2md.py INPUT.pdf [-o OUT.md] [选项]
@@ -49,11 +49,11 @@ from __future__ import annotations
 
 import argparse
 import hashlib
-import json
 import os
 import re
 import shutil
 import statistics
+import subprocess
 import sys
 from collections import Counter, defaultdict
 from dataclasses import dataclass, field
@@ -80,6 +80,7 @@ LIST_RE = re.compile(
     r"^(?P<marker>[-*•·▪◦–—]|\(?\d{1,3}[.)]|[a-zA-Z][.)])\s+(?P<text>.+)$"
 )
 MONO_RE = re.compile(r"(mono|menlo|courier|consolas|monaco|code|fixed)", re.I)
+RULE_TEXTS = {"---", "***", "* * *", "___", "_ _ _"}
 
 
 # --------------------------------------------------------------------------- #
@@ -107,6 +108,7 @@ class PageInfo:
     height: float
     lines: list[Line] = field(default_factory=list)
     tables: list[dict] = field(default_factory=list)
+    toc: bool = False  # 整页都是 PDF 自带目录，已丢弃
 
     def is_edge(self, line: Line, ratio: float = 0.1) -> bool:
         """行是否落在页面上/下边缘（页眉页脚区）。"""
@@ -221,14 +223,55 @@ def clean_lines(pages: list[PageInfo], keep_page_numbers: bool) -> None:
     drop_pdf_toc(pages)
 
 
+def _rough_body_size(pages: list[PageInfo]) -> float:
+    """粗估正文号，用于找目录页结束位置（此时还没有 Layout）。"""
+    weight: Counter[float] = Counter()
+    for page in pages:
+        for line in page.lines:
+            weight[round(line.size, 1)] += len(line.text)
+    return max(weight, key=weight.get) if weight else 10.0
+
+
 def drop_pdf_toc(pages: list[PageInfo]) -> None:
     """删掉 PDF 自带的目录页（后面会按识别到的标题重新生成目录）。
 
-    只在出现「目录 / Contents」标题后，连续命中「点前导符或末尾页码」的行
-    才会被当作目录项，避免误删正文。
+    两种形态都处理：
+
+    1. 目录页整页都是短条目（没有页码，也很常见）：从「目录」标题所在页开始，
+       一直丢到第一页出现「标题字号」的页面（目录页只排正文号的短条目）；
+    2. 目录条目带点前导符或末尾页码：逐行丢，直到不再命中目录格式。
+
+    只在前 10% 页面里找目录，避免误删正文中的「目录」章节。
     """
+    body_size = _rough_body_size(pages)
+    limit = min(len(pages), max(30, int(len(pages) * 0.1)))
+    start = None
+    for index, page in enumerate(pages[:limit]):
+        if any(TOC_TITLE_RE.match(line.text) for line in page.lines):
+            start = index
+            break
+
+    if start is not None:
+        end = None
+        for index in range(start + 1, len(pages)):
+            page = pages[index]
+            # 目录页只排正文号的短条目；一旦出现标题字号，说明进入正文
+            has_heading = any(
+                line.size >= body_size * 1.05 and not TOC_TITLE_RE.match(line.text)
+                for line in page.lines
+            )
+            if has_heading:
+                end = index
+                break
+        if end is not None and end > start:
+            for page in pages[start:end]:
+                page.lines = []
+                page.toc = True
+
     dropping = False
     for page in pages:
+        if page.toc:
+            continue
         kept: list[Line] = []
         for line in page.lines:
             if TOC_TITLE_RE.match(line.text):
@@ -428,7 +471,7 @@ def merge_heading_runs(lines: list[Line]) -> list[Line]:
             and prev.page == line.page
             and line.top - prev.bottom < max(6.0, 1.2 * prev.size)
         ):
-            prev.text = join_text(prev.text, line.text)
+            prev.text = f"{prev.text} {line.text}".strip()
             prev.x1, prev.bottom = line.x1, line.bottom
             continue
         merged.append(line)
@@ -458,6 +501,15 @@ def build_blocks(items: list[tuple], layout: Layout) -> list[dict]:
             continue
 
         line: Line = payload
+
+        # 独立成一行的 *** / ___ 统一按分隔线处理（与 jpm/pdf2md.py 一致）
+        if line.text.strip() in RULE_TEXTS:
+            flush()
+            if blocks and blocks[-1]["kind"] == "heading":
+                continue  # 标题后的分隔线没有意义
+            blocks.append({"kind": "hr"})
+            continue
+
         if line.level:
             flush()
             blocks.append({"kind": "heading", "level": line.level, "text": line.text})
@@ -507,6 +559,22 @@ def build_blocks(items: list[tuple], layout: Layout) -> list[dict]:
                 cur["x1"], cur["bottom"] = line.x1, line.bottom
                 continue
 
+        # 缩进达到引文阈值：强引文优先于“折行续接”判断，
+        # 否则页面顶部的诗词会被并进上一段（jpm/pdf2md.py 的 x0>=130 分支）
+        if indent + 0.5 >= size * layout.quote_chars:
+            if cur is not None and cur["kind"] == "quote":
+                cur["lines"].append(line.text)
+                cur["x1"], cur["bottom"] = line.x1, line.bottom
+            else:
+                flush()
+                cur = {
+                    "kind": "quote",
+                    "lines": [line.text],
+                    "x1": line.x1,
+                    "bottom": line.bottom,
+                }
+            continue
+
         wrapped = (
             cur is not None
             and cur["kind"] in ("p", "quote")
@@ -520,28 +588,7 @@ def build_blocks(items: list[tuple], layout: Layout) -> list[dict]:
             cur["x1"], cur["bottom"] = line.x1, line.bottom
             continue
 
-        # 已经在引文块里：短行、间距正常、且没有回到页边，就继续算引文
-        if cur is not None and cur["kind"] == "quote":
-            short = (line.x1 - line.x0) < 0.55 * (layout.right - layout.left)
-            gap_small = line.top - cur["bottom"] <= 1.8 * size
-            if short and gap_small and indent >= size * layout.indent_chars * 0.8:
-                cur["lines"].append(line.text)
-                cur["x1"], cur["bottom"] = line.x1, line.bottom
-                continue
-
-        if indent >= size * layout.quote_chars:
-            if cur is not None and cur["kind"] == "quote":
-                cur["lines"].append(line.text)
-                cur["x1"], cur["bottom"] = line.x1, line.bottom
-            else:
-                flush()
-                cur = {
-                    "kind": "quote",
-                    "lines": [line.text],
-                    "x1": line.x1,
-                    "bottom": line.bottom,
-                }
-        elif indent >= size * layout.indent_chars * 0.8:
+        if indent + 0.5 >= size * layout.indent_chars * 0.8:
             flush()
             cur = {"kind": "p", "text": line.text, "x1": line.x1, "bottom": line.bottom}
         else:
@@ -582,8 +629,8 @@ def slugify(text: str, used: set[str]) -> str:
     slug = re.sub(r"[^\w\u3400-\u9fff\- ]", "", slug).replace(" ", "-") or "section"
     base, index = slug, 1
     while slug in used:
-        index += 1
         slug = f"{base}-{index}"
+        index += 1
     used.add(slug)
     return slug
 
@@ -609,13 +656,16 @@ def render(
         fields = [(k, v) for k, v in (("title", title), ("author", author), ("lang", lang)) if v]
         out.append(
             "---\n"
-            + "\n".join(f"{key}: {json.dumps(value, ensure_ascii=False)}" for key, value in fields)
+            + "\n".join(
+                f"{key}: '{value.replace(chr(39), chr(39) * 2)}'"
+                for key, value in fields
+            )
             + "\n---"
         )
 
     if cover:
         # 封面在书名之前；首行不是标题，显式关闭 MD041
-        out.append("<!-- markdownlint-disable MD041 -- 封面图位于书名之前 -->")
+        out.append("<!-- markdownlint-disable MD041 -->")
         out.append(f"![封面](<{cover}>)")
 
     out.append(f"# {title}")
@@ -655,8 +705,19 @@ def render(
             out.append("```\n" + "\n".join(block["lines"]).rstrip() + "\n```")
         elif block["kind"] == "heading":
             out.append(f"{'#' * block['level']} {fix_heading(block['text'])}")
+        elif block["kind"] == "hr":
+            out.append("---")
         elif block["kind"] == "p":
-            out.append(fix(block["text"]))
+            text = fix(block["text"])
+            prev = out[-1] if out else ""
+            is_para = bool(prev) and not prev.startswith(
+                ("#", ">", "- ", "* ", "![", "|", "```")
+            ) and prev != "---"
+            # PDF 偶尔把句末引号或逗号断到下一段，合并回上一段（jpm 的处理）
+            if is_para and (text[0] in "”’」』）" or prev.endswith(("，", "、"))):
+                out[-1] = prev + text
+            else:
+                out.append(text)
         elif block["kind"] == "quote":
             out.append("> " + "\\\n> ".join(fix(line) for line in block["lines"]))
         elif block["kind"] == "table":
@@ -748,6 +809,11 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument("--chapter-regex", default=DEFAULT_CHAPTER_RE, help="章标题正则")
     parser.add_argument("--keep-page-numbers", action="store_true", help="保留页眉页脚")
     parser.add_argument("--no-polish", action="store_true", help="关闭中文标点整理")
+    parser.add_argument(
+        "--no-lint",
+        action="store_true",
+        help="生成后不运行 chinese-style-guide / markdownlint 检查",
+    )
     parser.add_argument("--debug", action="store_true", help="打印识别到的版式参数")
     return parser
 
@@ -857,6 +923,8 @@ def main() -> int:
                             cover_rect = (biggest["x0"], biggest["top"])
 
             for info in pages:
+                if info.toc:
+                    continue
                 page = pdf.pages[info.number - 1]
                 for image in page.images:
                     if cover_rect is not None and abs(image["x0"] - cover_rect[0]) < 0.5 and abs(
@@ -874,6 +942,8 @@ def main() -> int:
 
     items: list[tuple] = [(line.page, line.top, line.x0, "text", line) for line in lines] + images
     for page in pages:
+        if page.toc:
+            continue
         for table in page.tables:
             items.append((page.number, table["bbox"][1], table["bbox"][0], "table", table))
     items.sort(key=lambda item: (item[0], item[1], 0 if item[3] in ("image", "table") else 1, item[2]))
@@ -903,6 +973,22 @@ def main() -> int:
     )
     dst.write_text(markdown, encoding="utf-8")
 
+    # 固定收尾：先 chinese-style-guide 检查，再 markdownlint --fix
+    lint_ok = None
+    lint_output = ""
+    if not args.no_lint:
+        lint_script = Path(__file__).resolve().parent / "md-lint.sh"
+        if lint_script.is_file():
+            proc = subprocess.run(
+                ["bash", str(lint_script), str(dst)],
+                capture_output=True,
+                text=True,
+            )
+            lint_ok = proc.returncode == 0
+            lint_output = (proc.stdout or "") + (proc.stderr or "")
+        else:
+            print(f"提示: 未找到 {lint_script.name}，跳过 Markdown 收尾检查", file=sys.stderr)
+
     if args.debug:
         print(
             f"[booksmith] 正文号 {layout.body_size}pt  左边距 {layout.left:.1f}pt  "
@@ -915,6 +1001,18 @@ def main() -> int:
         f"已生成: {dst}（页面 {len(pages)}，内容块 {len(blocks)}，"
         f"图片 {len(images)} 张{'，含封面' if cover_rel else ''}）"
     )
+    if lint_output:
+        print()
+        print("== Markdown 收尾 ==")
+        print(lint_output.rstrip())
+        print()
+    if lint_ok is True:
+        print("Markdown 收尾: markdownlint 与 chinese-style-guide 均通过")
+    elif lint_ok is False:
+        print(
+            "提示: Markdown 仍有排版问题，按上面的行号修正后再导出 PDF / 电子书",
+            file=sys.stderr,
+        )
     return 0
 
 

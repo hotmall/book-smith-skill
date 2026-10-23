@@ -39,13 +39,16 @@ paragraph on a single line in the source.
 
 ```bash
 # PDF
-bash scripts/md2pdf.sh examples/demo.md -o dist/demo.pdf
+bash scripts/build-pdf.sh examples/demo.md
 
 # 电子书
-python3 scripts/md2ebook.py examples/demo.md -o dist/demo.epub
+bash scripts/build-azw3.sh examples/demo.md -o dist/demo.epub
 
 # PDF 还原成 Markdown
 python3 scripts/pdf2md.py dist/demo.pdf -o dist/demo.md
+
+# Markdown 收尾（markdownlint + chinese-style-guide）
+bash scripts/md-lint.sh examples/demo.md
 ```
 
 行内代码 `pdf2md.py` 与加粗 **重点** 都可以正常渲染。
