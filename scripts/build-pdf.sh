@@ -2,7 +2,7 @@
 # 用法: ./build-pdf.sh <input.md>
 # 依赖: pandoc + weasyprint + assets/pdf-style.html
 #
-# 流程严格照搬 jpm/build-pdf.sh：
+# 处理流程：
 #   Markdown --pandoc--> 单文件 HTML（内嵌图片/CSS）--weasyprint--> PDF
 # 输出固定为 dist/<md 文件名>.pdf，样式固定为 assets/pdf-style.html。
 set -euo pipefail

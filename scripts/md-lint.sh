@@ -43,7 +43,7 @@ fi
 
 status=0
 
-# 0) 统一分隔线：*** / ___ / * * * → ---（jpm 的输出约定）
+# 0) 统一分隔线：*** / ___ / * * * → ---（统一输出约定）
 if [ "$check_only" = 0 ]; then
   python3 - "$file" <<'PY'
 import re

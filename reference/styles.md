@@ -4,7 +4,6 @@
 
 - `assets/pdf-style.html`、`assets/ebook-style.html` 都是 **HTML 片段**：
   以 `<style>` 开头、`</style>` 结尾，由 pandoc 作为 `header-includes` 注入。
-- 两份样式分别原样移植自 `jpm/pdf-style.html`、`jpm/ebook-style.html`。
   改样式只改这两个文件，不要改脚本里的排版规则。
 - `build-pdf.sh` 固定使用 `assets/pdf-style.html`，输出 `dist/<md 文件名>.pdf`；
   `build-azw3.sh` 固定使用 `assets/ebook-style.html`，输出由 `-o` 决定。
@@ -22,7 +21,7 @@ Markdown
 ```
 
 `build-pdf.sh` 在 pandoc 生成 HTML 后，会移除 pandoc 默认模板自带的 `<style>`，
-只保留包含 `PingFang SC` 标记的自定义样式，避免默认 CSS 覆盖 jpm 样式。
+只保留包含 `PingFang SC` 标记的自定义样式，避免默认 CSS 覆盖自定义样式。
 
 ## PDF 样式要点
 

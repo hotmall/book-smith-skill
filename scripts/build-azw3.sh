@@ -7,8 +7,8 @@
 # 默认输出到 dist/<文件名>.azw3。首次运行会在本 skill 目录内创建 .venv-azw3
 # 并安装 ebook-converter-lib（需要 Python 3.11+）。
 #
-# 流程与选项照搬 jpm/build-azw3.sh：同一份 HTML 可输出 AZW3 / MOBI / EPUB，
-# 只是默认扩展名是 .azw3。样式固定为 assets/ebook-style.html。
+# 流程与选项：同一份 HTML 可输出 AZW3 / MOBI / EPUB，
+# 默认扩展名是 .azw3。样式固定为 assets/ebook-style.html。
 set -euo pipefail
 
 self_dir="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"

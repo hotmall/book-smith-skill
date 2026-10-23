@@ -3,8 +3,7 @@
 [English](README.md) | 简体中文
 
 > 一个给 AI agent 用的电子书工坊：**Markdown ⇄ PDF / EPUB / AZW3**。
-> 脚本与排版样式移植自 `jpm` 工程，所有输出都先转成 HTML，再交给 WeasyPrint
-> 或 Calibre。
+> 所有输出都先转成 HTML，再交给 WeasyPrint 或 Calibre。
 
 `book-smith-skill` 是一个自包含的 skill 包：`SKILL.md` 告诉 agent 什么时候用、
 怎么调参，`scripts/` 是可直接运行的通用脚本，`assets/` 是排版样式，
@@ -16,10 +15,10 @@
   与引文，还原段落、列表、代码块、表格、图片和目录，剔除页码与重复页眉页脚。
 - **Markdown → HTML → PDF**：pandoc 生成单文件 HTML（图片/CSS 内嵌），
   WeasyPrint 出 A4 PDF。A4、PingFang SC、段后留白、页脚页码、h1–h4 书签、
-  表格斑马纹，全部来自 `jpm/pdf-style.html`。
+  表格斑马纹，全部来自 `assets/pdf-style.html`。
 - **Markdown → HTML → 电子书**：同一份 HTML 交给 Calibre，输出 EPUB / AZW3 /
   MOBI；自动生成阅读器导航、探测封面、写入书名/作者元数据。样式来自
-  `jpm/ebook-style.html`。
+  `assets/ebook-style.html`。
 - **Markdown 收尾**：每次生成 Markdown 后先跑 `chinese-style-guide` 检查中英文
   空格、全半角标点和数字格式，再跑 `markdownlint --fix` 做最后的结构整理。
 - **一键安装**：`scripts/install.sh` 安装本 skill 时，会同步安装
@@ -88,7 +87,7 @@ agent 会统计正文字号和页边距、按缩进分段落与引文、还原�
 bash scripts/build-pdf.sh book.md
 ```
 
-输出 `dist/book.pdf`。默认套用 `jpm/pdf-style.html`：A4、PingFang SC 正文、
+输出 `dist/book.pdf`。默认套用 `assets/pdf-style.html`：A4、PingFang SC 正文、
 段后留白、蓝灰章节标题、浅蓝引用块、页脚「第 N 页 / 共 M 页」、PDF 书签和
 表格斑马纹。中文正文不首行缩进。
 
@@ -138,19 +137,21 @@ agent 的典型做法是：`pdf2md.py` 转 Markdown → 抽样校对并调参 �
 - 样式：只改 `assets/pdf-style.html` / `assets/ebook-style.html`，不改脚本里的
   排版规则
 
-## 样式来源
+## 样式
 
-`assets/pdf-style.html` 与 `assets/ebook-style.html` 分别是
-`jpm/pdf-style.html`、`jpm/ebook-style.html` 的原样移植：
+`assets/pdf-style.html` 定义打印版式：
 
 - PDF：A4，页边距 `18mm 16mm 16mm 16mm`，PingFang SC 10.5pt / 1.75 行高，
   段后 `1.75em`，h1–h4 书签，页脚页码，引用块 `#f4f7fb` + 4pt 蓝边，表格斑马纹，
   `.note` 灰字弱化段落，任务清单方框。
+
+`assets/ebook-style.html` 定义阅读器版式：
+
 - 电子书：Songti SC 正文 1.7 行高，深蓝标题带下边框，引用块左侧 3px 蓝线，
   表格边框与表头底色；不含 `@page` 等打印专用规则。
 
-`build-pdf.sh` 和 `build-azw3.sh` 的核心命令、pandoc 参数、HTML 中间产物处理
-也照搬 `jpm/build-pdf.sh`、`jpm/build-azw3.sh`。样式细节见 `reference/styles.md`。
+两条构建脚本共用一条链路：pandoc 生成单文件 HTML（图片/CSS 内嵌），
+WeasyPrint 转 PDF，Calibre 转 EPUB/AZW3/MOBI。样式细节见 `reference/styles.md`。
 
 ## 目录结构
 
@@ -160,8 +161,8 @@ agent 的典型做法是：`pdf2md.py` 转 Markdown → 抽样校对并调参 �
 ├── README.md                英文 README（默认显示）
 ├── README.zh-CN.md          本文件
 ├── assets/
-│   ├── pdf-style.html       打印样式（jpm 移植）
-│   └── ebook-style.html     电子书样式（jpm 移植）
+│   ├── pdf-style.html       打印样式
+│   └── ebook-style.html     电子书样式
 ├── scripts/
 │   ├── pdf2md.py            PDF → Markdown
 │   ├── build-pdf.sh         Markdown → HTML → PDF

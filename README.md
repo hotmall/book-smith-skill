@@ -3,8 +3,8 @@
 English | [简体中文](README.zh-CN.md)
 
 > An ebook workshop for AI agents: **Markdown ⇄ PDF / EPUB / AZW3**.
-> Scripts and typography are ported from the `jpm` project. Every output goes
-> through a single-file HTML step before WeasyPrint or Calibre.
+> Every output goes through a single-file HTML step before WeasyPrint or
+> Calibre.
 
 `book-smith-skill` is a self-contained skill package: `SKILL.md` tells an agent
 when to use it and how to tune it, `scripts/` contains runnable utilities,
@@ -19,10 +19,10 @@ guide and style notes. Everything runs locally; no cloud service is required.
 - **Markdown → HTML → PDF**: pandoc produces a standalone HTML file with images
   and CSS embedded, then WeasyPrint renders an A4 PDF. A4, PingFang SC, paragraph
   spacing, page footers, h1–h4 bookmarks, and zebra-striped tables come from
-  `jpm/pdf-style.html`.
+  `assets/pdf-style.html`.
 - **Markdown → HTML → ebook**: the same HTML goes to Calibre to produce EPUB /
   AZW3 / MOBI, with reader navigation, cover detection, and title/author
-  metadata. Styling comes from `jpm/ebook-style.html`.
+  metadata. Styling comes from `assets/ebook-style.html`.
 - **Markdown cleanup**: every generated Markdown file is checked by
   `chinese-style-guide` first, then structurally fixed by `markdownlint --fix`.
 - **One-step install**: `scripts/install.sh` installs this skill and
@@ -101,8 +101,8 @@ indent is written. After generation it runs `md-lint.sh`:
 bash scripts/build-pdf.sh book.md
 ```
 
-The output is `dist/book.pdf`. The default style is `jpm/pdf-style.html`: A4,
-PingFang SC at 10.5pt, paragraph spacing, blue-gray headings, light-blue
+The output is `dist/book.pdf`. The default style is `assets/pdf-style.html`:
+A4, PingFang SC at 10.5pt, paragraph spacing, blue-gray headings, light-blue
 blockquotes, a “Page N of M” footer, PDF bookmarks, and zebra-striped tables.
 Chinese body text has no first-line indent.
 
@@ -157,25 +157,27 @@ Markdown → verify file sizes, TOC entries, and image counts.
 - Image directory: `<output-name>.assets/`; the cover is always `cover.*`.
 - Image syntax: `![alt](<path>)`, which survives paths containing spaces.
 - Outputs: `dist/` by default.
-- Styles and scripts: keep the `jpm` implementation; do not invent new
-  typography rules.
+- Styles and scripts: keep the built-in implementation; change typography only
+  in `assets/*.html`.
 
-## Style provenance
+## Styles
 
-`assets/pdf-style.html` and `assets/ebook-style.html` are byte-for-byte ports of
-`jpm/pdf-style.html` and `jpm/ebook-style.html`:
+`assets/pdf-style.html` defines the print layout:
 
 - **PDF**: A4, margins `18mm 16mm 16mm 16mm`, PingFang SC 10.5pt / 1.75 line
   height, `1.75em` paragraph spacing, h1–h4 bookmarks, page footer, blockquotes
   with `#f4f7fb` background and a 4pt blue rule, zebra-striped tables, muted
   `.note` paragraphs, and task-list checkboxes.
+
+`assets/ebook-style.html` defines the reader layout:
+
 - **Ebook**: Songti SC body at 1.7 line height, dark-blue headings with bottom
   rules, blockquotes with a 3px blue rule, bordered tables with a tinted header.
   No `@page` or print-only rules.
 
-The core commands, pandoc arguments, and HTML intermediate handling in
-`build-pdf.sh` and `build-azw3.sh` are also ported from `jpm/build-pdf.sh` and
-`jpm/build-azw3.sh`. See `reference/styles.md` for details.
+Both build scripts share one pipeline: pandoc renders Markdown to a standalone
+HTML file with images and CSS embedded; WeasyPrint turns it into PDF, and
+Calibre turns it into EPUB/AZW3/MOBI. See `reference/styles.md` for details.
 
 ## Directory layout
 
@@ -185,8 +187,8 @@ The core commands, pandoc arguments, and HTML intermediate handling in
 ├── README.md                this file (English)
 ├── README.zh-CN.md          Chinese README
 ├── assets/
-│   ├── pdf-style.html       print style (ported from jpm)
-│   └── ebook-style.html     ebook style (ported from jpm)
+│   ├── pdf-style.html       print style
+│   └── ebook-style.html     ebook style
 ├── scripts/
 │   ├── pdf2md.py            PDF → Markdown
 │   ├── build-pdf.sh         Markdown → HTML → PDF

@@ -1,6 +1,6 @@
 ---
 name: book-smith-skill
-description: book-smith-skill —— 把 Markdown 排版成 PDF / EPUB / AZW3（Kindle），也把 PDF 反向还原成带图片、表格和目录的干净 Markdown。pandoc 先统一生成单文件 HTML，再分别交给 WeasyPrint（PDF）和 Calibre（电子书）；样式与脚本移植自 jpm 工程。每次生成 Markdown 后都会先跑 chinese-style-guide 排版检查，再跑 markdownlint --fix 做最后结构整理。Use when the user asks to export Markdown to PDF, build an ebook (epub/azw3/mobi) for Kindle or a reader, apply print/ebook typography, convert a PDF into Markdown, recover images and tables from a PDF, or fix a bad PDF→Markdown conversion. Triggers include 导出 PDF、生成电子书、排版、中文排版、转 Kindle、PDF 转 Markdown、PDF 提取图片/表格.
+description: book-smith-skill —— 把 Markdown 排版成 PDF / EPUB / AZW3（Kindle），也把 PDF 反向还原成带图片、表格和目录的干净 Markdown。pandoc 先统一生成单文件 HTML，再分别交给 WeasyPrint（PDF）和 Calibre（电子书）。每次生成 Markdown 后都会先跑 chinese-style-guide 排版检查，再跑 markdownlint --fix 做最后结构整理。Use when the user asks to export Markdown to PDF, build an ebook (epub/azw3/mobi) for Kindle or a reader, apply print/ebook typography, convert a PDF into Markdown, recover images and tables from a PDF, or fix a bad PDF→Markdown conversion. Triggers include 导出 PDF、生成电子书、排版、中文排版、转 Kindle、PDF 转 Markdown、PDF 提取图片/表格.
 ---
 
 # book-smith-skill
@@ -22,8 +22,8 @@ scripts/build-azw3.sh   Markdown → HTML → AZW3/EPUB/MOBI（pandoc + Calibre�
 scripts/md-lint.sh      Markdown 收尾：chinese-style-guide → markdownlint --fix
 scripts/install.sh      安装本 skill，并同步安装 chinese-style-guide
 scripts/doctor.sh       检查依赖
-assets/pdf-style.html   打印样式（jpm/pdf-style.html 原样移植）
-assets/ebook-style.html 电子书样式（jpm/ebook-style.html 原样移植）
+assets/pdf-style.html   打印样式
+assets/ebook-style.html 电子书样式
 ```
 
 ## 安装
@@ -82,7 +82,7 @@ python3 scripts/pdf2md.py book.pdf -o book.md --debug
 - 统计正文字号、左右边距，按「缩进 = 新段、顶格 = 续行」合并段落
 - 比正文大的字号映射为 h2/h3/h4（h1 留给书名），紧邻的主副标题用空格合并
 - 缩进达到 `--quote-indent-chars`（默认 4 字）的行输出为 `>` 引文块，
-  诗词行之间用 `\` 硬换行，和 `jpm` 的输出一致
+  诗词行之间用 `\` 硬换行
 - 行首列表标记还原为列表；等宽字体行还原为代码块
 - 页面上有表格结构时输出 Markdown 表格
 - 剔除页码、重复页眉页脚、PDF 自带目录页，再按识别到的标题重新生成「## 目录」
@@ -118,7 +118,7 @@ bash scripts/build-pdf.sh book.md
 ```
 
 - 输出固定为 `dist/<md 文件名>.pdf`
-- 样式固定为 `assets/pdf-style.html`（`jpm/pdf-style.html` 原样移植）：A4、
+- 样式固定为 `assets/pdf-style.html`（内置打印样式）：A4、
   PingFang SC 10.5pt、1.75 行高、段后留白、蓝灰色章节标题、浅蓝引用块、
   页脚「第 N 页 / 共 M 页」、h1–h4 PDF 书签、表格斑马纹
 - 流程：pandoc 生成单文件 HTML（`--embed-resources`，图片/CSS 全内嵌）→
@@ -134,7 +134,7 @@ bash scripts/build-azw3.sh book.md -o dist/book.epub
 ```
 
 - 同一份 HTML 交给 Calibre，按 `-o` 扩展名输出 `azw3` / `epub` / `mobi`
-- 样式固定为 `assets/ebook-style.html`（`jpm/ebook-style.html` 原样移植）：
+- 样式固定为 `assets/ebook-style.html`（内置电子书样式）：
   宋体正文、深蓝标题、蓝线引用块、表格边框
 - 书名取 Markdown 首个 `#` 标题，也可用 `-t` 指定；`-a` 写作者元数据
 - 默认删掉手写的「## 目录」章节，改由阅读器导航（`--keep-toc` 可保留）
@@ -158,7 +158,7 @@ bash scripts/build-azw3.sh book.md -o dist/book.epub
 - 图片目录：`<输出名>.assets/`，封面固定叫 `cover.*`
 - 图片写法：`![alt](<path>)`，路径含空格也不会坏
 - 产物：默认放 `dist/`
-- 样式与脚本：严格沿用 `jpm` 的实现，不自行发明新的排版规则
+- 样式与脚本：沿用内置实现，不自行发明新的排版规则
 
 ## 排障
 

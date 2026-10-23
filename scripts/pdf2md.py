@@ -502,7 +502,7 @@ def build_blocks(items: list[tuple], layout: Layout) -> list[dict]:
 
         line: Line = payload
 
-        # 独立成一行的 *** / ___ 统一按分隔线处理（与 jpm/pdf2md.py 一致）
+        # 独立成一行的 *** / ___ 统一按分隔线处理（统一输出约定）
         if line.text.strip() in RULE_TEXTS:
             flush()
             if blocks and blocks[-1]["kind"] == "heading":
@@ -560,7 +560,7 @@ def build_blocks(items: list[tuple], layout: Layout) -> list[dict]:
                 continue
 
         # 缩进达到引文阈值：强引文优先于“折行续接”判断，
-        # 否则页面顶部的诗词会被并进上一段（jpm/pdf2md.py 的 x0>=130 分支）
+        # 否则页面顶部的诗词会被并进上一段
         if indent + 0.5 >= size * layout.quote_chars:
             if cur is not None and cur["kind"] == "quote":
                 cur["lines"].append(line.text)
@@ -713,7 +713,7 @@ def render(
             is_para = bool(prev) and not prev.startswith(
                 ("#", ">", "- ", "* ", "![", "|", "```")
             ) and prev != "---"
-            # PDF 偶尔把句末引号或逗号断到下一段，合并回上一段（jpm 的处理）
+            # PDF 偶尔把句末引号或逗号断到下一段，合并回上一段以保持段落完整
             if is_para and (text[0] in "”’」』）" or prev.endswith(("，", "、"))):
                 out[-1] = prev + text
             else:
