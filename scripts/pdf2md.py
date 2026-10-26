@@ -42,7 +42,8 @@
     --no-polish              关闭中文标点整理
     --debug                  打印识别到的版式参数
 
-依赖: pip install pdfplumber pillow
+依赖: pdfplumber、pillow，装在内置统一 venv .venv 中（见 scripts/pyenv.sh）；
+      首次运行自动创建并安装。
 """
 
 from __future__ import annotations
@@ -822,20 +823,24 @@ def _plain(text: str) -> str:
     return re.sub(r"[\s\W_]+", "", text, flags=re.UNICODE).lower()
 
 
-def bootstrap_with_uv() -> None:
-    """当前解释器缺依赖时，若有 uv 就临时拉一个环境重跑自己。"""
+def bootstrap_with_venv() -> None:
+    """当前解释器缺依赖时，切到 skill 的统一 venv 重跑自己。
+
+    pdf2md.py / build-pdf.sh / build-azw3.sh 共用一个 venv（scripts/pyenv.sh），
+    依赖按需装进去，不再各自建环境。
+    """
     if os.environ.get("BOOKSMITH_BOOTSTRAPPED") == "1":
         return
-    uv = shutil.which("uv")
-    if not uv:
+    helper = Path(__file__).resolve().parent / "pyenv.sh"
+    if not helper.is_file():
         return
-    print("首次运行: 用 uv 准备 pdfplumber / pillow ...", file=sys.stderr)
+    bash = shutil.which("bash") or "/bin/bash"
+    print("准备统一 venv（pdfplumber / pillow）...", file=sys.stderr)
     env = dict(os.environ, BOOKSMITH_BOOTSTRAPPED="1")
     os.execve(
-        uv,
+        bash,
         [
-            uv, "run", "--no-project", "--quiet",
-            "--with", "pdfplumber>=0.10", "--with", "pillow",
+            bash, str(helper), "run", "--md",
             "python", str(Path(__file__).resolve()), *sys.argv[1:],
         ],
         env,
@@ -849,8 +854,12 @@ def main() -> int:
         import pdfplumber  # noqa: F401
         import PIL  # noqa: F401
     except ImportError:
-        bootstrap_with_uv()
-        print("错误: 需要 pdfplumber 和 pillow\n  pip install pdfplumber pillow", file=sys.stderr)
+        bootstrap_with_venv()
+        print(
+            "错误: 需要 pdfplumber 和 pillow\n"
+            "  bash scripts/pyenv.sh ensure --md",
+            file=sys.stderr,
+        )
         return 1
 
     src = Path(args.input).expanduser()

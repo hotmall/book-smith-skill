@@ -76,6 +76,7 @@ for candidate in \
   "${BOOKSMITH_CHINESE_GUIDE:-}" \
   "$self_dir/../vendor/chinese-style-guide/scripts/check_format.py" \
   "${BOOKSMITH_SKILLS_DIR:-$HOME/.config/opencode/skills}/chinese-style-guide/scripts/check_format.py" \
+  "$HOME/.agents/skills/chinese-style-guide/scripts/check_format.py" \
   "$HOME/.claude/skills/chinese-style-guide/scripts/check_format.py"; do
   [ -z "$candidate" ] && continue
   if [ -d "$candidate" ]; then

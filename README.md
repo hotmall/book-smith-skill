@@ -28,9 +28,8 @@ guide and style notes. Everything runs locally; no cloud service is required.
 - **One-step install**: `scripts/install.sh` installs this skill and
   [`chinese-style-guide`](https://github.com/RightCapitalHQ/chinese-style-guide)
   together.
-- **Low friction**: `doctor.sh` checks dependencies; `pdf2md.py` bootstraps a
-  temporary `uv` environment if `pdfplumber` / `pillow` are missing; the ebook
-  script creates `.venv-azw3` on first use.
+- **Low friction**: `doctor.sh` checks dependencies, and all Python steps share
+  a single venv created on demand by `scripts/pyenv.sh`.
 
 ## Installation
 
@@ -64,11 +63,31 @@ pandoc, WeasyPrint, Python (pdfplumber / pillow), markdownlint, and Python 3.11+
 engine). On Linux you also need CJK fonts (Noto CJK) and pango; on Windows,
 use WSL.
 
+### Python environment: one venv for everything
+
+Every Python dependency lives in the same venv at `<skill>/.venv`, managed by
+`scripts/pyenv.sh` and installed on demand:
+
+| Used by | Dependency | On first use |
+| --- | --- | --- |
+| `pdf2md.py` | pdfplumber + pillow | installed into `.venv` |
+| `build-pdf.sh` | weasyprint | venv first, then PATH; installed into `.venv` if neither |
+| `build-azw3.sh` | ebook-converter-lib | installed into `.venv` (large, slow first run) |
+
+```bash
+bash scripts/pyenv.sh status        # venv and dependency status
+bash scripts/pyenv.sh ensure --all  # install everything at once
+```
+
+The old standalone `.venv-azw3` is migrated to `.venv` automatically on the
+next run. The venv requires Python 3.11+; `BOOKSMITH_VENV` and
+`BOOKSMITH_PYTHON` override the location and the base interpreter.
+
 ## Pipeline
 
 ```text
-PDF ──pdf2md.py──▶ Markdown ──chinese-style-guide fixes → markdownlint --fix──▶ final Markdown
-                                                                  │
+PDF ──pdf2md.py──▶ Markdown ──chinese-style-guide fixes → markdownlint --fix──▶ final Markdown ──▶ kept next to the
+                                                                  │            source document (a.pdf → a.md + a.assets/)
                                                         pandoc (standalone HTML)
                                                         ├── WeasyPrint ──▶ PDF
                                                         └── Calibre ─────▶ AZW3 / EPUB
@@ -143,7 +162,9 @@ tuning.
 > Rebuild this PDF as both a PDF and an ebook.
 
 A typical run: `pdf2md.py` → sample and tune → `md-lint.sh` and
-`chinese-style-guide` fixes → `build-pdf.sh` and `build-azw3.sh` from the same
+`chinese-style-guide` fixes → `keep-md.sh` keeps the final Markdown next to the
+source document (`a.pdf` → `a.md` + `a.assets/`; a no-op when the default
+output is already there) → `build-pdf.sh` and `build-azw3.sh` from the same
 Markdown → verify file sizes, TOC entries, and image counts.
 
 ## Conventions
@@ -156,6 +177,8 @@ Markdown → verify file sizes, TOC entries, and image counts.
   punctuation, numbers).
 - Image directory: `<output-name>.assets/`; the cover is always `cover.*`.
 - Image syntax: `![alt](<path>)`, which survives paths containing spaces.
+- Intermediate Markdown: once finalized, keep it next to the source document
+  (`<source-name>.md` + `<source-name>.assets/`).
 - Outputs: `dist/` by default.
 - Styles and scripts: keep the built-in implementation; change typography only
   in `assets/*.html`.
@@ -194,6 +217,8 @@ Calibre turns it into EPUB/AZW3/MOBI. See `reference/styles.md` for details.
 │   ├── build-pdf.sh         Markdown → HTML → PDF
 │   ├── build-azw3.sh        Markdown → HTML → EPUB/AZW3/MOBI
 │   ├── md-lint.sh           chinese-style-guide → markdownlint cleanup
+│   ├── keep-md.sh           keep the final Markdown next to the source document
+│   ├── pyenv.sh             the single shared Python venv
 │   ├── install.sh           install this skill + chinese-style-guide
 │   └── doctor.sh            dependency check
 ├── reference/
@@ -223,13 +248,15 @@ Calibre turns it into EPUB/AZW3/MOBI. See `reference/styles.md` for details.
 | Chinese characters render as boxes | Change `font-family` or install Source Han / Noto CJK |
 | Body text has a first-line indent | Remove `text-indent` from a custom style |
 | pandoc warns about `translations for zh` | Harmless; ignore it |
-| The first ebook conversion is slow | It is creating `.venv-azw3` and installing `ebook-converter-lib`; later runs reuse it |
+| The first ebook conversion is slow | It is installing `ebook-converter-lib` into the shared `.venv`; later runs reuse it |
 | The ebook has no TOC | Make sure the body uses `##` or higher-level headings |
 | PDF→Markdown merges or splits paragraphs | Follow `reference/pdf2md-tuning.md` to adjust thresholds |
 | The TOC appears twice | Do not generate it twice; skip the PDF's own TOC pages |
 | The cover is not detected | Pass a cover explicitly; by default only a large first-page image is used |
 | Chinese check says the guide is missing | Run `bash scripts/install.sh` |
 | markdownlint still reports problems | Fix by line number and rerun `md-lint.sh` |
+| The venv cannot be created | Python 3.11+ is required: `brew install python@3.12` or `brew install uv`; or point `BOOKSMITH_PYTHON` at an interpreter |
+| Broken image links in the kept Markdown | Copy with `scripts/keep-md.sh`; it rewrites links when the assets directory is renamed |
 
 ## Notes
 

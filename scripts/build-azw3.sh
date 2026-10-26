@@ -4,48 +4,30 @@
 # 用法:
 #   ./build-azw3.sh <input.md> [-o output.azw3] [-a 作者] [-t 书名] [--keep-toc]
 #
-# 默认输出到 dist/<文件名>.azw3。首次运行会在本 skill 目录内创建 .venv-azw3
-# 并安装 ebook-converter-lib（需要 Python 3.11+）。
+# 默认输出到 dist/<文件名>.azw3。首次运行会把 ebook-converter-lib 装进 skill 目录
+# 的统一 venv .venv（见 pyenv.sh，需要 Python 3.11+）。
 #
 # 流程与选项：同一份 HTML 可输出 AZW3 / MOBI / EPUB，
 # 默认扩展名是 .azw3。样式固定为 assets/ebook-style.html。
 set -euo pipefail
 
 self_dir="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-VENV="$self_dir/../.venv-azw3"
 STYLE="$self_dir/../assets/ebook-style.html"
 
+# 统一 Python 环境（与 pdf2md.py / build-pdf.sh 共用同一 venv）
+# shellcheck source=./pyenv.sh
+source "$self_dir/pyenv.sh"
+
 usage() {
-  sed -n '2,12p' "$0" | sed 's/^# \{0,1\}//'
+  sed -n '2,11p' "$0" | sed 's/^# \{0,1\}//'
 }
 
-find_python() {
-  for candidate in python3.12 python3.13 python3.11 python3.14; do
-    if command -v "$candidate" >/dev/null 2>&1 &&
-      "$candidate" -c 'import sys; raise SystemExit(0 if sys.version_info >= (3, 11) else 1)' 2>/dev/null; then
-      command -v "$candidate"
-      return 0
-    fi
-  done
-  if command -v uv >/dev/null 2>&1; then
-    uv python find '>=3.11' 2>/dev/null && return 0
-  fi
-  return 1
-}
-
+# 统一 venv 里确保有 ebook-converter-lib（首次会安装，体积较大）
 setup_venv() {
-  if [ -x "$VENV/bin/python" ] && "$VENV/bin/python" -c 'import ebook_converter_lib' 2>/dev/null; then
-    return 0
-  fi
-  local py
-  if ! py="$(find_python)"; then
-    echo "错误: 需要 Python 3.11 或更新版本" >&2
+  ensure_ebook_deps || {
+    echo "错误: 无法准备 ebook-converter-lib（见上面的提示）" >&2
     exit 1
-  fi
-  echo "首次运行: 用 $py 创建 $VENV 并安装 ebook-converter-lib ..."
-  "$py" -m venv "$VENV"
-  "$VENV/bin/python" -m pip install --quiet --upgrade pip
-  "$VENV/bin/python" -m pip install --quiet 'ebook-converter-lib>=1.2,<2'
+  }
 }
 
 src=""
@@ -112,8 +94,7 @@ fi
 mkdir -p "$(dirname "$out")"
 
 setup_venv
-
-"$VENV/bin/python" - "$src" "$out" "$title" "$author" "$keep_toc" "$STYLE" <<'PY'
+"$(venv_python)" - "$src" "$out" "$title" "$author" "$keep_toc" "$STYLE" <<'PY'
 import io
 import re
 import shutil

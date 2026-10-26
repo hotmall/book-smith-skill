@@ -5,10 +5,15 @@
 # 处理流程：
 #   Markdown --pandoc--> 单文件 HTML（内嵌图片/CSS）--weasyprint--> PDF
 # 输出固定为 dist/<md 文件名>.pdf，样式固定为 assets/pdf-style.html。
+# weasyprint 优先用统一 venv .venv 内的版本，没有则用系统 PATH 上的版本。
 set -euo pipefail
 
 self_dir="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 style="$self_dir/../assets/pdf-style.html"
+
+# 统一 Python 环境（与 pdf2md.py / build-azw3.sh 共用同一 venv）
+# shellcheck source=./pyenv.sh
+source "$self_dir/pyenv.sh"
 
 src="${1:-}"
 if [ -z "$src" ]; then
@@ -27,10 +32,24 @@ command -v pandoc >/dev/null 2>&1 || {
   echo "错误: 需要 pandoc（brew install pandoc）" >&2
   exit 1
 }
-command -v weasyprint >/dev/null 2>&1 || {
-  echo "错误: 需要 weasyprint（pip install weasyprint）" >&2
+
+# weasyprint：统一 venv 优先，其次是系统安装
+weasyprint_bin=""
+venv_weasyprint="$BOOKSMITH_VENV/bin/weasyprint"
+if [ -x "$venv_weasyprint" ] && "$venv_weasyprint" --version >/dev/null 2>&1; then
+  weasyprint_bin="$venv_weasyprint"
+elif command -v weasyprint >/dev/null 2>&1; then
+  weasyprint_bin="$(command -v weasyprint)"
+else
+  echo "未找到 weasyprint，正在装进统一 venv $BOOKSMITH_VENV ..." >&2
+  if ensure_pdf_deps && [ -x "$venv_weasyprint" ] && "$venv_weasyprint" --version >/dev/null 2>&1; then
+    weasyprint_bin="$venv_weasyprint"
+  fi
+fi
+if [ -z "$weasyprint_bin" ]; then
+  echo "错误: 需要 weasyprint（pip install weasyprint；macOS 还需 brew install pango）" >&2
   exit 1
-}
+fi
 
 base="$(basename "${src%.md}")"
 srcdir="$(cd "$(dirname "$src")" && pwd)"
@@ -65,5 +84,5 @@ html = html[:head_start] + "".join(out) + html[head_end:]
 open(p, "w", encoding="utf-8").write(html)
 EOF
 
-weasyprint "$tmphtml" "dist/${base}.pdf"
+"$weasyprint_bin" "$tmphtml" "dist/${base}.pdf"
 echo "已生成: dist/${base}.pdf"

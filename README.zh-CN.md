@@ -23,8 +23,8 @@
   空格、全半角标点和数字格式，再跑 `markdownlint --fix` 做最后的结构整理。
 - **一键安装**：`scripts/install.sh` 安装本 skill 时，会同步安装
   [`chinese-style-guide`](https://github.com/RightCapitalHQ/chinese-style-guide)。
-- **省事**：`doctor.sh` 一键体检；`pdf2md.py` 缺依赖且本机有 `uv` 时会自动
-  拉临时环境运行；电子书引擎缺失时自动建 `.venv-azw3`。
+- **省事**：`doctor.sh` 一键体检；三个 Python 脚本共用 skill 目录下的**同一
+  个 venv**（`scripts/pyenv.sh`），依赖按需自动装进去，不用手动配环境。
 
 ## 安装
 
@@ -56,11 +56,30 @@ bash scripts/install.sh --target ~/.claude/skills
 以及 Python 3.11+（电子书脚本会自动安装 `ebook-converter-lib`，底层是 Calibre
 引擎）。Linux 上需要中文字体（Noto CJK）和 pango，Windows 建议在 WSL 里使用。
 
+### Python 环境：一个 venv 装全部依赖
+
+所有 Python 依赖都装进 skill 目录下的同一个 venv `<skill>/.venv`，由
+`scripts/pyenv.sh` 统一管理，按需安装：
+
+| 用途 | 依赖 | 首次使用时 |
+| --- | --- | --- |
+| `pdf2md.py` | pdfplumber + pillow | 自动装进 `.venv` |
+| `build-pdf.sh` | weasyprint | venv 内优先，其次 PATH；都没有就装进 `.venv` |
+| `build-azw3.sh` | ebook-converter-lib | 自动装进 `.venv`（体积大，首次较慢） |
+
+```bash
+bash scripts/pyenv.sh status        # 看 venv 与依赖状态
+bash scripts/pyenv.sh ensure --all  # 一次装齐
+```
+
+旧版的独立环境 `.venv-azw3` 会在下次运行时自动迁移成 `.venv`；venv 需要
+Python 3.11+，用 `BOOKSMITH_VENV` / `BOOKSMITH_PYTHON` 可以覆盖路径和解释器。
+
 ## 流程
 
 ```text
-PDF ──pdf2md.py──▶ Markdown ──chinese-style-guide 修正 → markdownlint --fix──▶ 定稿 Markdown
-                                                                  │
+PDF ──pdf2md.py──▶ Markdown ──chinese-style-guide 修正 → markdownlint --fix──▶ 定稿 Markdown ──▶ 留存在源文档旁边
+                                                                  │            （a.pdf → a.md + a.assets/）
                                                         pandoc（单文件 HTML）
                                                         ├── WeasyPrint ──▶ PDF
                                                         └── Calibre ─────▶ AZW3 / EPUB
@@ -123,8 +142,10 @@ bash scripts/md-lint.sh book.md
 > 把这个 PDF 重排成 PDF 和电子书。
 
 agent 的典型做法是：`pdf2md.py` 转 Markdown → 抽样校对并调参 → `md-lint.sh`
-收尾并按 `chinese-style-guide` 修正 → 用同一份 Markdown 分别跑 `build-pdf.sh`
-和 `build-azw3.sh` → 检查文件、目录条目和图片数量。
+收尾并按 `chinese-style-guide` 修正 → `keep-md.sh` 把定稿 Markdown 留存在
+源文档旁边（`a.pdf` → `a.md` + `a.assets/`；默认输出已在源文档旁时自动跳过）
+→ 用同一份 Markdown 分别跑 `build-pdf.sh` 和 `build-azw3.sh` → 检查文件、
+目录条目和图片数量。
 
 ## 约定
 
@@ -133,6 +154,7 @@ agent 的典型做法是：`pdf2md.py` 转 Markdown → 抽样校对并调参 �
 - 中文排版：统一按 `chinese-style-guide` 的规则检查
 - 图片目录：`<输出名>.assets/`，封面固定叫 `cover.*`
 - 图片写法：`![alt](<path>)`
+- 中间 Markdown：定稿后留存在源文档旁边（`<源文件名>.md` + `<源文件名>.assets/`）
 - 产物：默认放 `dist/`
 - 样式：只改 `assets/pdf-style.html` / `assets/ebook-style.html`，不改脚本里的
   排版规则
@@ -168,6 +190,8 @@ WeasyPrint 转 PDF，Calibre 转 EPUB/AZW3/MOBI。样式细节见 `reference/sty
 │   ├── build-pdf.sh         Markdown → HTML → PDF
 │   ├── build-azw3.sh        Markdown → HTML → EPUB/AZW3/MOBI
 │   ├── md-lint.sh           chinese-style-guide → markdownlint 收尾
+│   ├── keep-md.sh           定稿 Markdown 留存在源文档旁边（含 .assets/）
+│   ├── pyenv.sh             统一 Python venv（三组依赖共用）
 │   ├── install.sh           安装本 skill + chinese-style-guide
 │   └── doctor.sh            依赖体检
 ├── reference/
@@ -194,13 +218,15 @@ WeasyPrint 转 PDF，Calibre 转 EPUB/AZW3/MOBI。样式细节见 `reference/sty
 | PDF 里中文变方框 | 换字体（`font-family`），或安装思源/Noto CJK |
 | 正文出现首行缩进 | 去掉自定义样式里的 `text-indent` |
 | pandoc 提示 `translations for zh` | 无害警告，忽略 |
-| 电子书转换第一次很慢 | 正在建 `.venv-azw3` 装 `ebook-converter-lib`，之后复用 |
+| 电子书转换第一次很慢 | 正在把 `ebook-converter-lib` 装进统一 venv `.venv`，之后复用 |
 | 电子书没有目录 | 确认正文有 `##` 及更高级标题 |
 | PDF 转出来段落粘连 / 被拆碎 | 让 agent 按 `reference/pdf2md-tuning.md` 调段落间距与缩进阈值 |
 | 目录出现两份 | 不要重复生成目录，或跳过 PDF 自带的目录页 |
 | 封面没被识别 | 直接指定封面图；默认只认首页占比够大的图片 |
 | 中文检查提示未安装 | `bash scripts/install.sh` |
 | markdown lint 还有问题 | 按行号修正后重跑 `md-lint.sh` |
+| venv 建不起来 | 需要 Python 3.11+：`brew install python@3.12` 或 `brew install uv`；也可用 `BOOKSMITH_PYTHON` 指定解释器 |
+| 留存的 Markdown 图片链接失效 | 用 `scripts/keep-md.sh` 复制；assets 目录改名时会同步改写链接 |
 
 ## 说明
 

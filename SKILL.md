@@ -8,8 +8,8 @@ description: book-smith-skill —— 把 Markdown 排版成 PDF / EPUB / AZW3（
 三条命令覆盖「Markdown ⇄ 电子书」全流程。所有产物都先变成 HTML，再转目标格式：
 
 ```text
-PDF ──pdf2md.py──▶ Markdown ──chinese-style-guide 修正 → markdownlint --fix──▶ 定稿 Markdown
-                                                                  │
+PDF ──pdf2md.py──▶ Markdown ──chinese-style-guide 修正 → markdownlint --fix──▶ 定稿 Markdown ──▶ 留存在源文档旁边
+                                                                  │            （a.pdf → a.md + a.assets/）
                                                         pandoc（单文件 HTML，内嵌图片/CSS）
                                                         ├── WeasyPrint ──▶ PDF
                                                         └── Calibre ─────▶ AZW3 / EPUB / MOBI
@@ -20,6 +20,8 @@ scripts/pdf2md.py       PDF  → Markdown（标题/段落/引文/表格/图片�
 scripts/build-pdf.sh    Markdown → HTML → PDF（pandoc + WeasyPrint）
 scripts/build-azw3.sh   Markdown → HTML → AZW3/EPUB/MOBI（pandoc + Calibre）
 scripts/md-lint.sh      Markdown 收尾：chinese-style-guide → markdownlint --fix
+scripts/keep-md.sh      定稿 Markdown 留存在源文档旁边（含 .assets/）
+scripts/pyenv.sh        统一 Python venv（pdfplumber/pillow、weasyprint、ebook-converter-lib 共用）
 scripts/install.sh      安装本 skill，并同步安装 chinese-style-guide
 scripts/doctor.sh       检查依赖
 assets/pdf-style.html   打印样式
@@ -48,6 +50,30 @@ skills 目录，目录名保持 `book-smith-skill` / `chinese-style-guide`。
 bash scripts/doctor.sh
 ```
 
+## Python 环境（一个 venv 装全部依赖）
+
+三个 Python 依赖的步骤共用 skill 目录下的**同一个 venv**（`<skill>/.venv`），
+由 `scripts/pyenv.sh` 统一管理，按需把依赖装进去：
+
+| 用途 | 依赖 | 首次使用时 |
+| --- | --- | --- |
+| `pdf2md.py` | pdfplumber + pillow | 自动装进 `.venv` |
+| `build-pdf.sh` | weasyprint | venv 内没有就用 PATH 上的，都没有则自动装进 `.venv` |
+| `build-azw3.sh` | ebook-converter-lib | 自动装进 `.venv`（体积大，首次较慢） |
+
+不再有独立环境：旧版的 `.venv-azw3` 会在下次运行时自动迁移成 `.venv`，
+`pdf2md.py` 也不再借 `uv` 拉临时环境（`uv` 只当找不到 Python 3.11+ 时的
+解释器来源）。手动管理时用：
+
+```bash
+bash scripts/pyenv.sh status                # 看 venv 与依赖状态
+bash scripts/pyenv.sh ensure --all          # 一次装齐三组依赖
+bash scripts/pyenv.sh run --ebook python -V # 在统一 venv 里跑命令
+```
+
+覆盖位置用环境变量 `BOOKSMITH_VENV`（venv 目录），覆盖解释器用
+`BOOKSMITH_PYTHON`。venv 需要 Python 3.11+。
+
 ## Markdown 收尾（必须）
 
 **每次生成或改写 Markdown 之后**，先跑：
@@ -70,6 +96,27 @@ chinese-style-guide 之后**，作为最后一道结构检查。中文检查只�
 电子书导出。**
 
 `pdf2md.py` 默认已自动执行这一步；想跳过用 `--no-lint`。
+
+## 中间 Markdown 留存（必须）
+
+Markdown 作为**中间产物**时（源文档 → Markdown → HTML → PDF / 电子书），
+`md-lint.sh` 通过后，必须把定稿 Markdown 留存在**源文档旁边**，不能留在
+临时目录里随任务丢弃：
+
+- 文件：`<源文档目录>/<源文件名>.md`（如 `a.pdf` → `a.md`）
+- 图片：`<源文件名>.assets/` 一起留存，否则 Markdown 里的图片链接会断
+
+`pdf2md.py` 的默认输出本来就在源文档旁边，这种情况无需额外操作；只有用
+`-o` 把中间稿写到了别的工作目录时，定稿后补跑一次：
+
+```bash
+bash scripts/keep-md.sh a.pdf /path/to/work/a.md
+```
+
+它会先跑 `md-lint.sh --check-only` 确认定稿通过（`--no-check` 可跳过），
+再复制 Markdown 和 `.assets/`；assets 目录随源文档改名时，会自动改写
+Markdown 里的图片链接。之后的 `build-pdf.sh` / `build-azw3.sh` 都用留存
+下来的这份 Markdown。
 
 ## 1. PDF → Markdown
 
@@ -140,15 +187,15 @@ bash scripts/build-azw3.sh book.md -o dist/book.epub
 - 默认删掉手写的「## 目录」章节，改由阅读器导航（`--keep-toc` 可保留）
 - 导航层级：h2 → 一级、h3 → 二级、h4 → 三级
 - 封面优先找 `<md 名>.assets/cover.png|jpg|jpeg`
-- 首次运行会在 skill 目录建 `.venv-azw3` 并安装 `ebook-converter-lib`
-  （需要 Python 3.11+）
+- `ebook-converter-lib` 装在统一 venv `.venv` 里（见「Python 环境」）
 
 ## 推荐工作流
 
 1. `pdf2md.py` 抽取 → 看 `--debug` 和抽样段落 → 必要时调参重跑
 2. `md-lint.sh` 收尾，按 `chinese-style-guide` 修正剩余排版问题
-3. `build-pdf.sh` 出 PDF；需要电子书再跑 `build-azw3.sh`，两者共用同一份 Markdown
-4. 校验：命令退出码为 0、文件存在且体积合理；抽查首尾段落、目录条目、图片数量
+3. 中间产物场景：`keep-md.sh` 把定稿留存在源文档旁边（默认输出已在源文档旁则跳过）
+4. `build-pdf.sh` 出 PDF；需要电子书再跑 `build-azw3.sh`，两者共用同一份 Markdown
+5. 校验：命令退出码为 0、文件存在且体积合理；抽查首尾段落、目录条目、图片数量
 
 ## 约定
 
@@ -157,6 +204,7 @@ bash scripts/build-azw3.sh book.md -o dist/book.epub
 - 中文排版：以 `chinese-style-guide` 的规则为准（中英文空格、标点、数字格式）
 - 图片目录：`<输出名>.assets/`，封面固定叫 `cover.*`
 - 图片写法：`![alt](<path>)`，路径含空格也不会坏
+- 中间 Markdown：定稿后留存在源文档旁边（`<源文件名>.md` + `<源文件名>.assets/`）
 - 产物：默认放 `dist/`
 - 样式与脚本：沿用内置实现，不自行发明新的排版规则
 
@@ -171,11 +219,13 @@ bash scripts/build-azw3.sh book.md -o dist/book.epub
 | 页码混进正文 | 页码不在页面上下 10% 区域时，`--keep-page-numbers` 反向排查后手工清理 |
 | 目录重复 | 先确认 PDF 自带目录页是否被自动丢弃；仍重复时用 `--skip-pages` 跳过目录页，或 `--no-toc` 后手工补 |
 | 图片缺失 | 检查 PDF 是否为矢量图形/扫描图；扫描件需先 OCR（本 skill 不含 OCR） |
-| `weasyprint: command not found` | `pip install weasyprint`；macOS 还需 `brew install pango` |
+| `weasyprint: command not found` | `bash scripts/pyenv.sh ensure --pdf` 装进统一 venv；macOS 还需 `brew install pango` |
 | pandoc 提示 `translations for zh` | 无害警告，可忽略 |
 | 电子书没封面 | 确认 `<md 名>.assets/cover.png` / `cover.jpg` |
 | 中文检查提示未安装 | `bash scripts/install.sh` 同步安装 `chinese-style-guide` |
 | markdown lint 还有问题 | 按行号修正后重跑 `md-lint.sh`；不要直接跳过 |
+| 留存的 Markdown 图片链接失效 | 用 `scripts/keep-md.sh` 复制；assets 目录改名时会同步改写链接 |
+| 统一 venv 建不起来 | 需要 Python 3.11+：`brew install python@3.12` 或 `brew install uv`；也可用 `BOOKSMITH_PYTHON` 指定解释器 |
 
 更细的参数取舍、脏 PDF 处理顺序见 `reference/pdf2md-tuning.md`，
 样式说明见 `reference/styles.md`。
